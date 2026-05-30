@@ -44,6 +44,27 @@ You can import a structured JSON payload without any model:
 griosai add-analysis --vault ~/GriosAI-vault --json-file ./examples/sample-analysis.json
 ```
 
+## Notebook Packets
+
+NotebookLM and notebook workflows should receive sanitized source packets, not
+raw logs or private dashboard state. Generate a packet from any analysis JSON:
+
+```bash
+griosai notebook-packet --vault ~/GriosAI-vault --json-file ./examples/sample-analysis.json
+```
+
+This writes `index.md`, `tables.csv`, `report.html`, and `manifest.json` under
+`~/GriosAI-vault/notebook-packets/`. The packet contract is available from
+Python too:
+
+```python
+from griosai.notebook import NotebookConnectorAdapter
+
+adapter = NotebookConnectorAdapter("~/GriosAI-vault")
+packet = adapter.write_packet({"title": "Notebook Source", "summary": "Local first"})
+packet.connector_payload()
+```
+
 ## Phone Access
 
 The server intentionally binds to localhost by default. For phone viewing, keep
@@ -77,6 +98,7 @@ private proxy changes the `Host` header, start the server with
 - No secrets are required or stored.
 - No cloud provider is configured by default.
 - HTML dashboards use escaped content and no remote assets.
+- Notebook packets redact local paths and likely secrets before writing.
 - Vault writes are constrained to the selected vault directory.
 - Local services default to `127.0.0.1`.
 - Mutation APIs require bearer-token auth and `application/json`.

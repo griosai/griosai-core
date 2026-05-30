@@ -8,6 +8,7 @@ from pathlib import Path
 from .brain import AnalysisRecord, ensure_vault, slugify, write_analysis_note
 from .config import GriosConfig
 from .dashboard import write_dashboard
+from .notebook import NotebookConnectorAdapter
 from .ollama_client import DEFAULT_IMAGE_PROMPT, analyze_image
 from .server import create_sample, run_server
 
@@ -51,6 +52,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Wrote note: {note}")
         print(f"Wrote dashboard: {dashboard}")
         return 0
+    if args.command == "notebook-packet":
+        payload = _load_json_payload(args.json_file)
+        record = AnalysisRecord.from_mapping(payload, model="manual")
+        packet_root = Path(args.packet_root) if args.packet_root else None
+        adapter = NotebookConnectorAdapter(Path(args.vault), packet_root=packet_root)
+        packet = adapter.write_packet(record, slug=args.slug)
+        print(f"Wrote notebook packet: {packet.packet_dir}")
+        print(json.dumps(packet.connector_payload(), indent=2))
+        return 0
     if args.command == "serve":
         config = GriosConfig.from_env(
             vault_dir=args.vault,
@@ -93,6 +103,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON file to import, or '-' for stdin",
     )
     add_analysis.add_argument("--slug", default=None, help="Output slug")
+
+    notebook = subparsers.add_parser(
+        "notebook-packet",
+        help="Create a sanitized NotebookLM-ready source packet",
+    )
+    notebook.add_argument("--vault", required=True, help="Vault directory")
+    notebook.add_argument(
+        "--json-file",
+        default="-",
+        help="Analysis JSON file to packetize, or '-' for stdin",
+    )
+    notebook.add_argument("--slug", default=None, help="Packet slug")
+    notebook.add_argument(
+        "--packet-root",
+        default=None,
+        help="Optional packet root inside the selected vault",
+    )
 
     serve = subparsers.add_parser("serve", help="Run the local dashboard server")
     serve.add_argument("--vault", required=True, help="Vault directory")

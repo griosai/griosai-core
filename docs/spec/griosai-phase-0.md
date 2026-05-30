@@ -11,6 +11,8 @@ dashboard without sending private data to a server.
 - Brain: a plain-file vault, compatible with Obsidian and easy to back up.
 - Eyes: optional local Ollama vision model, starting with `qwen2.5vl:7b`.
 - Glue: Python package and CLI that a notebook connector can import.
+- Notebook packets: sanitized Markdown, CSV, HTML, and manifest sources for
+  NotebookLM-style import without exposing raw logs, local paths, or secrets.
 - Dashboard: self-contained HTML written into the vault.
 - Access: local HTTP server bound to `127.0.0.1`; phone access through
   Tailscale or trusted LAN only when explicitly requested.
