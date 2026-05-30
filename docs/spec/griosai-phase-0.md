@@ -14,6 +14,9 @@ dashboard without sending private data to a server.
 - Notebook packets: sanitized Markdown, CSV, HTML, and manifest sources for
   NotebookLM-style import without exposing raw logs, local paths, or secrets.
 - Dashboard: self-contained HTML written into the vault.
+- Backup/restore: manifest-backed zip archives for the plain-file vault,
+  with symlink skipping, digest verification, path validation, and
+  non-clobbering restore by default.
 - Obsidian sync: optional Local REST API adapter, localhost-only and
   token-authenticated.
 - MLflow tracking: optional REST adapter that logs privacy-preserving metadata
@@ -39,6 +42,7 @@ dashboard without sending private data to a server.
 - No Obsidian plugin dependency.
 - No Kubernetes or MLflow dependency for the core local CLI.
 - No raw-content, screenshot, or artifact uploads to MLflow by default.
+- No automatic backup upload or cloud sync.
 - No hardware-specific optimization.
 
 ## Later Tracks

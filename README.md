@@ -65,6 +65,27 @@ packet = adapter.write_packet({"title": "Notebook Source", "summary": "Local fir
 packet.connector_payload()
 ```
 
+## Backup And Restore
+
+Create a private zip backup of the local vault:
+
+```bash
+griosai backup --vault ~/GriosAI-vault --output ~/Backups
+```
+
+Restore into a new vault without clobbering existing files:
+
+```bash
+griosai restore ~/Backups/griosai-vault-20260530T120000Z.zip \
+  --vault ~/GriosAI-vault-restored
+```
+
+Backups include a manifest with file sizes and SHA-256 digests. Restore rejects
+unsafe paths, symlinks, unexpected entries, digest mismatches, and existing
+files unless `--overwrite` is set.
+
+See [docs/ops/backup-restore.md](docs/ops/backup-restore.md).
+
 ## Optional Obsidian Sync
 
 If the Obsidian Local REST API plugin is running, write the same markdown note
@@ -198,6 +219,8 @@ griosai credential-lease \
 - No cloud provider is configured by default.
 - HTML dashboards use escaped content and no remote assets.
 - Notebook packets redact local paths and likely secrets before writing.
+- Vault backups verify file hashes, skip symlinks, and restore without
+  clobbering by default.
 - Obsidian sync is optional, token-based, and restricted to localhost URLs.
 - MLflow tracking is optional, metadata-only, and localhost-only unless
   explicitly allowed.

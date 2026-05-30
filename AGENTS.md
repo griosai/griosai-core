@@ -11,6 +11,8 @@ explicitly opts into LAN, VPN, or Tailscale access.
 
 - Never commit real credentials, tokens, vault contents, customer data, or raw
   private screenshots.
+- Never commit vault backup archives; they can contain private notes, images,
+  dashboards, and notebook packets.
 - Bind services to `127.0.0.1` by default. Public exposure must be an explicit
   user decision.
 - Prefer plain files in a user-selected vault over hidden databases for notes,
@@ -39,5 +41,6 @@ explicitly opts into LAN, VPN, or Tailscale access.
 - `src/griosai/obsidian.py`: optional localhost-only Obsidian Local REST adapter.
 - `src/griosai/ollama_client.py`: optional local vision model calls.
 - `src/griosai/server.py`: local REST/dashboard server.
+- `src/griosai/vault_archive.py`: safe vault backup and restore.
 - `src/griosai/cli.py`: operator entrypoints.
 - `scripts/validate.sh`: canonical local and CI validation gate.

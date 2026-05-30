@@ -18,3 +18,5 @@ private/
 *.token
 mlruns/
 mlflow.db
+griosai-vault-*.zip
+*.griosai-backup.zip

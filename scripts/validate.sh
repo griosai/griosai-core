@@ -16,13 +16,22 @@ echo "==> compileall"
 echo "==> whitespace diff check"
 git diff --check
 
-echo "==> safety doctor smoke"
+echo "==> temporary vault setup"
 TMPDIR="$(mktemp -d)"
 cleanup() {
   rm -rf "$TMPDIR"
 }
 trap cleanup EXIT
 "$PYTHON_BIN" -m griosai.cli init --vault "$TMPDIR/vault" >/dev/null
+"$PYTHON_BIN" -m griosai.cli sample --vault "$TMPDIR/vault" >/dev/null
+
+echo "==> backup restore smoke"
+BACKUP_JSON="$("$PYTHON_BIN" -m griosai.cli backup --vault "$TMPDIR/vault" --output "$TMPDIR")"
+printf '%s\n' "$BACKUP_JSON"
+ARCHIVE_PATH="$(printf '%s' "$BACKUP_JSON" | "$PYTHON_BIN" -c 'import json, sys; print(json.load(sys.stdin)["archive_path"])')"
+"$PYTHON_BIN" -m griosai.cli restore "$ARCHIVE_PATH" --vault "$TMPDIR/restored" >/dev/null
+
+echo "==> safety doctor smoke"
 DOCTOR_JSON="$("$PYTHON_BIN" -m griosai.cli doctor --vault "$TMPDIR/vault" --repo . --json)"
 printf '%s\n' "$DOCTOR_JSON"
 printf '%s' "$DOCTOR_JSON" | "$PYTHON_BIN" -c 'import json, sys; data=json.load(sys.stdin); raise SystemExit(data["summary"]["fail"] != 0)'

@@ -15,6 +15,7 @@ from .notebook import NotebookConnectorAdapter
 from .obsidian import ObsidianConfig, publish_analysis_to_obsidian
 from .ollama_client import DEFAULT_IMAGE_PROMPT, analyze_image
 from .server import create_sample, run_server
+from .vault_archive import backup_vault, restore_vault
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -95,6 +96,22 @@ def main(argv: list[str] | None = None) -> int:
             ),
             record,
             slug=args.slug,
+        )
+        print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        return 0
+    if args.command == "backup":
+        result = backup_vault(
+            Path(args.vault),
+            output_path=Path(args.output) if args.output else None,
+            overwrite=args.overwrite,
+        )
+        print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        return 0
+    if args.command == "restore":
+        result = restore_vault(
+            Path(args.archive),
+            vault_dir=Path(args.vault),
+            overwrite=args.overwrite,
         )
         print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
         return 0
@@ -224,6 +241,34 @@ def build_parser() -> argparse.ArgumentParser:
         "--allow-remote-tracking",
         action="store_true",
         help="Allow non-localhost MLflow Tracking URIs",
+    )
+
+    backup = subparsers.add_parser(
+        "backup",
+        help="Create a safe zip backup of the selected vault",
+    )
+    backup.add_argument("--vault", required=True, help="Vault directory")
+    backup.add_argument(
+        "--output",
+        default=None,
+        help="Output zip file or directory; defaults to the vault parent",
+    )
+    backup.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace the exact output archive path instead of allocating a unique path",
+    )
+
+    restore = subparsers.add_parser(
+        "restore",
+        help="Restore a GriosAI vault zip backup",
+    )
+    restore.add_argument("archive", help="Backup zip archive")
+    restore.add_argument("--vault", required=True, help="Restore destination vault directory")
+    restore.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace existing restore targets instead of failing",
     )
 
     lease = subparsers.add_parser(
