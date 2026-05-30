@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from griosai.brain import AnalysisRecord, ensure_vault
 from griosai.config import GriosConfig
-from griosai.server import make_handler, run_server
+from griosai.server import _redact_log_value, make_handler, run_server
 
 
 class ServerTests(unittest.TestCase):
@@ -117,6 +117,36 @@ class ServerTests(unittest.TestCase):
             self.assertTrue(Path(payload["lineage"]).exists())
             self.assertEqual(Path(payload["lineage"]).parent, vault / "lineage")
 
+    def test_post_analyze_image_internal_error_does_not_disclose_paths(self) -> None:
+        with running_server() as server:
+            vault = Path(server.griosai_vault_dir)
+            image = vault / "images" / "sample.png"
+            image.write_bytes(b"png")
+            body = json.dumps({"image_path": str(image)}).encode("utf-8")
+
+            with patch(
+                "griosai.server.analyze_image",
+                return_value=AnalysisRecord(title="Server Failure", summary="local"),
+            ), patch(
+                "griosai.server.write_analysis_note",
+                side_effect=RuntimeError("/Users/gustavorios/private/vault denied"),
+            ):
+                response = request(
+                    server,
+                    "POST",
+                    "/api/analyze-image",
+                    body=body,
+                    headers={
+                        "Authorization": "Bearer test-token",
+                        "Content-Type": "application/json",
+                    },
+                )
+            payload = json.loads(response.read().decode("utf-8"))
+
+            self.assertEqual(response.status, 500)
+            self.assertEqual(payload["error"], "internal server error")
+            self.assertNotIn("/Users/gustavorios", json.dumps(payload))
+
     def test_html_responses_include_security_headers(self) -> None:
         with running_server() as server:
             response = request(server, "GET", "/")
@@ -136,6 +166,18 @@ class ServerTests(unittest.TestCase):
 
         self.assertIn("Mutation API token: configured", output.getvalue())
         self.assertNotIn("configured-token-value", output.getvalue())
+
+    def test_log_redactor_removes_paths_and_credentials(self) -> None:
+        redacted = _redact_log_value(
+            r"token=secret-value mac=/Users/gustavorios/x linux=/home/gustavo/y home=~/z windows=C:\Users\gustavo\a"
+        )
+
+        self.assertIn("token=[redacted]", redacted)
+        self.assertNotIn("secret-value", redacted)
+        self.assertNotIn("/Users/gustavorios", redacted)
+        self.assertNotIn("/home/gustavo", redacted)
+        self.assertNotIn("~/z", redacted)
+        self.assertNotIn(r"C:\Users", redacted)
 
 
 class running_server:

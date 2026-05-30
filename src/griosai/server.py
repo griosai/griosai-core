@@ -150,8 +150,9 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
             except OllamaError as exc:
                 self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
             except Exception as exc:
+                print(f"internal server error: {_redact_log_value(str(exc))}")
                 self._send_json(
-                    {"error": str(exc)},
+                    {"error": "internal server error"},
                     status=HTTPStatus.INTERNAL_SERVER_ERROR,
                 )
 
@@ -374,8 +375,13 @@ def _host_without_port(value: str) -> str:
 
 
 def _redact_log_value(value: str) -> str:
+    text = re.sub(
+        r"(?<![\w.-])(?:~/[^\s)>\"]+|/(?:Users|home|Volumes|private|var/folders|data|mnt|opt|tmp)/[^\s)>\"]+|[A-Za-z]:[\\/][^\s)>\"]+)",
+        "[local-path]",
+        value,
+    )
     return re.sub(
         r"(?i)(authorization|api[_-]?key|token|secret|password)=([^&\s]+)",
         r"\1=[redacted]",
-        value,
+        text,
     )

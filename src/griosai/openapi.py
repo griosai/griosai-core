@@ -211,10 +211,10 @@ _OPENAPI_SPEC: dict[str, Any] = {
             "DashboardSummary": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["name", "updated_at"],
+                "required": ["name", "url"],
                 "properties": {
                     "name": {"type": "string"},
-                    "updated_at": {"type": "string", "format": "date-time"},
+                    "url": {"type": "string"},
                 },
             },
             "NotesResponse": {

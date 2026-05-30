@@ -79,10 +79,31 @@ class NotebookTests(unittest.TestCase):
 
     def test_redact_text_removes_paths_and_likely_secrets(self) -> None:
         openai_style_key = "sk-" + "abcdefghijklmnop"
-        text = redact_text(f"path=/Users/gustavorios/x token=abc123456 {openai_style_key}")
+        text = redact_text(
+            "mac=/Users/gustavorios/x "
+            "linux=/home/gustavo/private/file.md "
+            "container=/data/vault/notes/raw.md "
+            r"windows=C:\Users\gustavo\secret.txt "
+            f"token=abc123456 {openai_style_key}"
+        )
         self.assertNotIn("/Users/gustavorios", text)
+        self.assertNotIn("/home/gustavo", text)
+        self.assertNotIn("/data/vault", text)
+        self.assertNotIn(r"C:\Users", text)
         self.assertNotIn("abc123456", text)
         self.assertNotIn(openai_style_key, text)
+
+    def test_packet_validation_blocks_common_platform_absolute_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            packet_dir = Path(tmp) / "packet"
+            packet_dir.mkdir()
+            (packet_dir / "index.md").write_text(
+                r"linux=/home/gustavo/private/file.md windows=C:\Users\gustavo\secret.txt",
+                encoding="utf-8",
+            )
+
+            findings = validate_notebook_packet(packet_dir)
+            self.assertTrue(any("local absolute path" in finding for finding in findings))
 
     def test_cli_notebook_packet_imports_json_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

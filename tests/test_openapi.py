@@ -33,6 +33,10 @@ class OpenApiTests(unittest.TestCase):
             "AnalyzeImageRequest",
             spec["components"]["schemas"],
         )
+        dashboard_schema = spec["components"]["schemas"]["DashboardSummary"]
+        self.assertEqual(dashboard_schema["required"], ["name", "url"])
+        self.assertIn("url", dashboard_schema["properties"])
+        self.assertNotIn("updated_at", dashboard_schema["properties"])
 
     def test_openapi_json_is_stable_and_round_trips(self) -> None:
         encoded = openapi_json()

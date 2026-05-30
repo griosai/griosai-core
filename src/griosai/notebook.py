@@ -21,7 +21,7 @@ DEFAULT_PACKET_SOURCES = ("index.md", "tables.csv", "report.html", "manifest.jso
 DEFAULT_DENY_SOURCES = ("*.jsonl", "*transcript*", "raw-*", ".env*", "*.token", "*.secret")
 
 _ABSOLUTE_PATH_RE = re.compile(
-    r"(?<![\w.-])(?:/Users|/Volumes|/private|/var/folders)/[^\s)>\"]+"
+    r"(?<![\w.-])(?:/(?:Users|home|Volumes|private|var/folders|data|mnt|opt|tmp)/[^\s)>\"]+|[A-Za-z]:[\\/][^\s)>\"]+)"
 )
 _HOME_PATH_RE = re.compile(r"(?<![\w.-])~/[^\s)>\"]+")
 _BEARER_RE = re.compile(r"(?i)\bbearer\s+[a-z0-9._~+/=-]{8,}")
