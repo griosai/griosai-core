@@ -16,6 +16,10 @@ dashboard without sending private data to a server.
 - Dashboard: self-contained HTML written into the vault.
 - Obsidian sync: optional Local REST API adapter, localhost-only and
   token-authenticated.
+- Safety doctor: local readiness checks for config, vault layout, packet
+  privacy, and placeholder-only examples.
+- Credential leases: runtime-only scoped lease scaffold before any cloud
+  provider support.
 - Access: local HTTP server bound to `127.0.0.1`; phone access through
   Tailscale or trusted LAN only when explicitly requested.
 - Mutation APIs: bearer-token protected, JSON-only, and constrained to vault
@@ -24,7 +28,7 @@ dashboard without sending private data to a server.
 ## Non-Goals For Phase 0
 
 - No cloud model provider defaults.
-- No credential broker yet.
+- No persistent credential broker or cloud token store yet.
 - No public tunnel.
 - No Obsidian plugin dependency.
 - No hardware-specific optimization.
@@ -35,7 +39,7 @@ dashboard without sending private data to a server.
 - Tailscale setup guide/script.
 - Private phone companion flow over Tailscale.
 - Hardware tiers: phone-sized companion first, base-station compute later.
-- Scoped token broker before adding any cloud APIs.
+- Persistent credential broker before adding any cloud APIs.
 
 ## Safety Principles
 

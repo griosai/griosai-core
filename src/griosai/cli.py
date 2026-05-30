@@ -6,8 +6,10 @@ import sys
 from pathlib import Path
 
 from .brain import AnalysisRecord, ensure_vault, slugify, write_analysis_note
+from .broker import CredentialBroker
 from .config import GriosConfig
 from .dashboard import write_dashboard
+from .doctor import doctor_exit_code, format_doctor_json, format_doctor_text, run_doctor
 from .notebook import NotebookConnectorAdapter
 from .obsidian import ObsidianConfig, publish_analysis_to_obsidian
 from .ollama_client import DEFAULT_IMAGE_PROMPT, analyze_image
@@ -80,6 +82,23 @@ def main(argv: list[str] | None = None) -> int:
         action = "Replaced" if result.replaced else "Wrote"
         print(f"{action} Obsidian note: {result.path}")
         return 0
+    if args.command == "credential-lease":
+        lease = CredentialBroker().issue_env_lease(
+            secret_name=args.secret_name,
+            env_var=args.env_var,
+            scopes=tuple(args.scope),
+            client_id=args.client_id,
+            ttl_seconds=args.ttl_seconds,
+        )
+        print(json.dumps(lease.audit_record(), indent=2, sort_keys=True))
+        return 0
+    if args.command == "doctor":
+        checks = run_doctor(
+            vault_dir=Path(args.vault) if args.vault else None,
+            repo_dir=Path(args.repo) if args.repo else None,
+        )
+        print(format_doctor_json(checks) if args.json else format_doctor_text(checks))
+        return doctor_exit_code(checks)
     if args.command == "serve":
         config = GriosConfig.from_env(
             vault_dir=args.vault,
@@ -167,6 +186,26 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Allow a localhost self-signed Obsidian certificate",
     )
+
+    lease = subparsers.add_parser(
+        "credential-lease",
+        help="Validate a scoped runtime secret lease without printing the secret",
+    )
+    lease.add_argument("--secret-name", required=True, help="Human-readable secret handle")
+    lease.add_argument("--env-var", required=True, help="Environment variable containing the secret")
+    lease.add_argument(
+        "--scope",
+        action="append",
+        required=True,
+        help="Allowed action scope, for example obsidian:write",
+    )
+    lease.add_argument("--client-id", default="griosai-cli", help="Lease client identifier")
+    lease.add_argument("--ttl-seconds", type=int, default=900, help="Lease TTL, max 3600 seconds")
+
+    doctor = subparsers.add_parser("doctor", help="Run local safety and readiness checks")
+    doctor.add_argument("--vault", default=None, help="Optional vault directory to inspect")
+    doctor.add_argument("--repo", default=None, help="Optional repository directory to inspect")
+    doctor.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
 
     serve = subparsers.add_parser("serve", help="Run the local dashboard server")
     serve.add_argument("--vault", required=True, help="Vault directory")

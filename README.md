@@ -102,6 +102,28 @@ private proxy changes the `Host` header, start the server with
 
 See [docs/ops/private-phone-access.md](docs/ops/private-phone-access.md).
 
+## Safety Doctor And Credential Leases
+
+Run the local readiness checker before exposing a dashboard or syncing through
+an adapter:
+
+```bash
+griosai doctor --vault ~/GriosAI-vault --repo .
+```
+
+For runtime credentials, validate a scoped lease without printing or persisting
+the secret:
+
+```bash
+read -rsp "Obsidian API key: " GRIOSAI_OBSIDIAN_API_KEY; echo
+export GRIOSAI_OBSIDIAN_API_KEY
+griosai credential-lease \
+  --secret-name obsidian-local-rest \
+  --env-var GRIOSAI_OBSIDIAN_API_KEY \
+  --scope obsidian:write \
+  --client-id local-operator
+```
+
 ## Endpoints
 
 - `GET /`: local dashboard index.
@@ -120,6 +142,8 @@ See [docs/ops/private-phone-access.md](docs/ops/private-phone-access.md).
 - Notebook packets redact local paths and likely secrets before writing.
 - Obsidian sync is optional, token-based, and restricted to localhost URLs.
 - HTTP responses include no-store, nosniff, referrer, and CSP safety headers.
+- Credential leases are runtime-only, scoped, short-lived, and redacted in logs.
+- `griosai doctor` checks local config, vault layout, packets, and placeholders.
 - Vault writes are constrained to the selected vault directory.
 - Local services default to `127.0.0.1`.
 - Mutation APIs require bearer-token auth and `application/json`.
