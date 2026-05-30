@@ -29,6 +29,7 @@ echo "==> backup restore smoke"
 BACKUP_JSON="$("$PYTHON_BIN" -m griosai.cli backup --vault "$TMPDIR/vault" --output "$TMPDIR")"
 printf '%s\n' "$BACKUP_JSON"
 ARCHIVE_PATH="$(printf '%s' "$BACKUP_JSON" | "$PYTHON_BIN" -c 'import json, sys; print(json.load(sys.stdin)["archive_path"])')"
+"$PYTHON_BIN" -m griosai.cli verify-backup "$ARCHIVE_PATH" >/dev/null
 "$PYTHON_BIN" -m griosai.cli restore "$ARCHIVE_PATH" --vault "$TMPDIR/restored" >/dev/null
 
 echo "==> safety doctor smoke"

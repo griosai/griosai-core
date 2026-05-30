@@ -13,7 +13,7 @@ Required evidence:
 - Unit tests pass.
 - `compileall` passes.
 - `git diff --check` passes.
-- Backup/restore CLI smoke passes.
+- Backup/verify/restore CLI smoke passes.
 - `griosai doctor` reports zero failures against a fresh vault.
 - Kubernetes Kustomize renders pass when `kubectl` is available.
 - Secret-pattern scan returns no findings.
@@ -26,7 +26,9 @@ griosai init --vault "$TMPDIR/vault"
 griosai sample --vault "$TMPDIR/vault"
 griosai add-analysis --vault "$TMPDIR/vault" --json-file ./examples/sample-analysis.json
 griosai notebook-packet --vault "$TMPDIR/vault" --json-file ./examples/sample-analysis.json
-griosai backup --vault "$TMPDIR/vault" --output "$TMPDIR"
+BACKUP_JSON="$(griosai backup --vault "$TMPDIR/vault" --output "$TMPDIR")"
+ARCHIVE="$(printf '%s' "$BACKUP_JSON" | python3 -c 'import json, sys; print(json.load(sys.stdin)["archive_path"])')"
+griosai verify-backup "$ARCHIVE"
 griosai doctor --vault "$TMPDIR/vault" --repo .
 ```
 
@@ -48,6 +50,8 @@ Optional smoke tests:
 - Configured mutation tokens are not printed in logs.
 - No public `NodePort`, `LoadBalancer`, or public Ingress is present unless the
   release explicitly adds reviewed public exposure.
+- Kubernetes NetworkPolicies render and still match the intended private app,
+  MLflow, DNS, and optional Ollama paths.
 
 ## Git Gate
 

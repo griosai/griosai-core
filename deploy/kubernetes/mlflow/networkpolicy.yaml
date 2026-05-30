@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mlflow-tracking-private
+  namespace: griosai
+  labels:
+    app.kubernetes.io/name: mlflow-tracking
+    app.kubernetes.io/part-of: griosai
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mlflow-tracking
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: griosai
+              app.kubernetes.io/component: dashboard
+      ports:
+        - protocol: TCP
+          port: 5000
+  egress: []

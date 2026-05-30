@@ -8,7 +8,7 @@ entrypoint across supported Python versions.
 - Python unit tests.
 - Python bytecode compilation for `src/griosai/`.
 - Git whitespace errors through `git diff --check`.
-- CLI backup and restore smoke test.
+- CLI backup, verify-backup, and restore smoke test.
 - `griosai doctor` against a fresh vault and this repo.
 - Kubernetes Kustomize rendering when `kubectl` is installed.
 - Secret-like patterns with `rg` when ripgrep is installed.

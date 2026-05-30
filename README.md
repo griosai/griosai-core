@@ -84,6 +84,10 @@ Backups include a manifest with file sizes and SHA-256 digests. Restore rejects
 unsafe paths, symlinks, unexpected entries, digest mismatches, and existing
 files unless `--overwrite` is set.
 
+```bash
+griosai verify-backup ~/Backups/griosai-vault-20260530T120000Z.zip
+```
+
 See [docs/ops/backup-restore.md](docs/ops/backup-restore.md).
 
 ## Optional Obsidian Sync
@@ -157,7 +161,8 @@ kubectl -n griosai port-forward svc/griosai 8765:8765
 
 The service is `ClusterIP`, not public. The pod runs as non-root, uses a
 read-only root filesystem, mounts a PVC-backed vault, disables service-account
-token mounting, and probes `/api/health` with an allowed local Host header.
+token mounting, probes `/api/health` with an allowed local Host header, and
+ships NetworkPolicies for clusters whose CNI enforces them.
 
 An optional OSS MLflow tracking server manifest is available under
 `deploy/kubernetes/mlflow/`. It is intentionally cluster-private and suitable
@@ -225,6 +230,8 @@ griosai credential-lease \
 - MLflow tracking is optional, metadata-only, and localhost-only unless
   explicitly allowed.
 - Kubernetes manifests default to private ClusterIP services and non-root pods.
+- Kubernetes NetworkPolicies restrict app and MLflow traffic when supported by
+  the cluster CNI.
 - HTTP responses include no-store, nosniff, referrer, and CSP safety headers.
 - Credential leases are runtime-only, scoped, short-lived, and redacted in logs.
 - `griosai doctor` checks local config, vault layout, packets, and placeholders.

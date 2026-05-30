@@ -11,6 +11,9 @@ hard requirement for local development.
 - The app service is `ClusterIP` only.
 - The app pod uses non-root execution, read-only root filesystem, dropped Linux
   capabilities, no service-account token mount, and HTTP health probes.
+- NetworkPolicies keep GriosAI ingress namespace-private and restrict egress to
+  DNS plus same-namespace MLflow/Ollama ports when the cluster CNI enforces
+  NetworkPolicy.
 - MLflow tracking uses the REST API through `src/griosai/mlflow_client.py`.
 - MLflow payloads are metadata-only: counts, slug, model label, timestamps, and
   safe source image basename.
@@ -79,6 +82,11 @@ localhost URI. The Service remains `ClusterIP`; do not expose this MLflow server
 with a public LoadBalancer or public Ingress unless you add authentication,
 TLS, and network policy first.
 
+The included MLflow NetworkPolicy allows ingress only from the GriosAI dashboard
+pod on TCP `5000` and denies MLflow egress by default. If you move MLflow to an
+external database or object store, add reviewed egress rules for those
+destinations.
+
 To inspect runs from your workstation:
 
 ```bash
@@ -104,3 +112,5 @@ the service private, and back up the artifact store.
 
 Keep public exposure as a separate, reviewed change. The checked-in manifests
 intentionally avoid `NodePort`, `LoadBalancer`, and public ingress resources.
+NetworkPolicy enforcement depends on the cluster network plugin; verify your
+cluster CNI supports it before treating policies as a boundary.

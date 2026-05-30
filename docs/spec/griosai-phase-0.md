@@ -22,7 +22,8 @@ dashboard without sending private data to a server.
 - MLflow tracking: optional REST adapter that logs privacy-preserving metadata
   only, localhost-only unless remote tracking is explicitly allowed.
 - Kubernetes: optional deployment manifests and container image definitions for
-  private ClusterIP operation with PVC-backed vault storage.
+  private ClusterIP operation, PVC-backed vault storage, and NetworkPolicy
+  guardrails.
 - Validation: one local script and CI workflow run tests, compile checks,
   doctor smoke, manifest rendering, whitespace checks, and secret scanning.
 - Safety doctor: local readiness checks for config, vault layout, packet

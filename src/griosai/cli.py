@@ -15,7 +15,7 @@ from .notebook import NotebookConnectorAdapter
 from .obsidian import ObsidianConfig, publish_analysis_to_obsidian
 from .ollama_client import DEFAULT_IMAGE_PROMPT, analyze_image
 from .server import create_sample, run_server
-from .vault_archive import backup_vault, restore_vault
+from .vault_archive import backup_vault, restore_vault, verify_backup
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -113,6 +113,10 @@ def main(argv: list[str] | None = None) -> int:
             vault_dir=Path(args.vault),
             overwrite=args.overwrite,
         )
+        print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        return 0
+    if args.command == "verify-backup":
+        result = verify_backup(Path(args.archive))
         print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
         return 0
     if args.command == "credential-lease":
@@ -270,6 +274,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Replace existing restore targets instead of failing",
     )
+
+    verify_backup_parser = subparsers.add_parser(
+        "verify-backup",
+        help="Verify a GriosAI vault zip backup without restoring it",
+    )
+    verify_backup_parser.add_argument("archive", help="Backup zip archive")
 
     lease = subparsers.add_parser(
         "credential-lease",

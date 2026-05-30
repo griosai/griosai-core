@@ -56,6 +56,24 @@ class RestoreResult:
         }
 
 
+@dataclass(frozen=True)
+class VerifyResult:
+    archive_path: Path
+    file_count: int
+    total_bytes: int
+    skipped_count: int
+    ok: bool = True
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "archive_path": str(self.archive_path),
+            "file_count": self.file_count,
+            "total_bytes": self.total_bytes,
+            "skipped_count": self.skipped_count,
+            "ok": self.ok,
+        }
+
+
 def backup_vault(
     vault_dir: Path,
     *,
@@ -86,6 +104,35 @@ def backup_vault(
         file_count=len(files),
         skipped_count=len(skipped),
         total_bytes=sum(int(item["size"]) for item in files),
+    )
+
+
+def verify_backup(archive_path: Path) -> VerifyResult:
+    archive_file = archive_path.expanduser().resolve()
+    if not archive_file.is_file():
+        raise FileNotFoundError(f"Backup archive not found: {archive_file}")
+
+    try:
+        with zipfile.ZipFile(archive_file, mode="r") as archive:
+            manifest = _read_manifest(archive)
+            file_records = _validate_archive(archive, manifest)
+            total_bytes = 0
+            for record in file_records:
+                with archive.open(record["path"], mode="r") as source:
+                    data = source.read()
+                digest = hashlib.sha256(data).hexdigest()
+                if digest != record["sha256"]:
+                    raise VaultArchiveError(f"Backup digest mismatch for {record['path']}")
+                total_bytes += len(data)
+    except zipfile.BadZipFile as exc:
+        raise VaultArchiveError("Backup archive is not a valid zip file") from exc
+
+    skipped = manifest.get("skipped", [])
+    return VerifyResult(
+        archive_path=archive_file,
+        file_count=len(file_records),
+        total_bytes=total_bytes,
+        skipped_count=len(skipped) if isinstance(skipped, list) else 0,
     )
 
 
@@ -143,6 +190,8 @@ def _backup_destination(vault: Path, *, output_path: Path | None, overwrite: boo
         elif candidate.suffix.lower() != ".zip":
             candidate = candidate.with_suffix(".zip")
     destination = candidate.resolve()
+    if destination == vault or vault in destination.parents:
+        raise VaultArchiveError("Backup output must not be inside the selected vault")
     if overwrite:
         return destination
     return unique_path(destination)

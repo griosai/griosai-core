@@ -27,6 +27,8 @@ explicitly opts into LAN, VPN, or Tailscale access.
   and the user explicitly accepts skipping validation.
 - Keep Kubernetes services private by default. Public ingress, LoadBalancer, or
   NodePort exposure requires an explicit review and user decision.
+- Keep Kubernetes NetworkPolicies aligned with app labels and documented
+  service dependencies.
 - Log only privacy-preserving metadata to MLflow unless the user explicitly
   approves artifact or raw-content tracking.
 

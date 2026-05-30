@@ -16,6 +16,7 @@ from griosai.vault_archive import (
     VaultArchiveError,
     backup_vault,
     restore_vault,
+    verify_backup,
 )
 
 
@@ -44,6 +45,11 @@ class VaultArchiveTests(unittest.TestCase):
                 ["dashboards/daily.html", "images/pixel.png", "notes/daily.md"],
             )
 
+            verified = verify_backup(archive.archive_path)
+            self.assertTrue(verified.ok)
+            self.assertEqual(verified.file_count, 3)
+            self.assertEqual(verified.total_bytes, archive.total_bytes)
+
     def test_backup_allocates_unique_archive_without_clobbering(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -56,6 +62,13 @@ class VaultArchiveTests(unittest.TestCase):
             self.assertNotEqual(result.archive_path, exact)
             self.assertEqual(exact.read_text(encoding="utf-8"), "do not replace")
             self.assertTrue(result.archive_path.name.startswith("vault-"))
+
+    def test_backup_rejects_output_inside_vault(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = _sample_vault(Path(tmp) / "vault")
+
+            with self.assertRaises(VaultArchiveError):
+                backup_vault(vault, output_path=vault / "inbox" / "backup.zip")
 
     def test_restore_refuses_existing_files_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -118,6 +131,8 @@ class VaultArchiveTests(unittest.TestCase):
 
             with self.assertRaises(VaultArchiveError):
                 restore_vault(archive, vault_dir=Path(tmp) / "vault")
+            with self.assertRaises(VaultArchiveError):
+                verify_backup(archive)
 
     def test_restore_rejects_unexpected_entries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -168,6 +183,13 @@ class VaultArchiveTests(unittest.TestCase):
                 )
             backup = json.loads(output.getvalue())
             self.assertEqual(backup["file_count"], 3)
+
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(main(["verify-backup", backup["archive_path"]]), 0)
+            verified = json.loads(output.getvalue())
+            self.assertTrue(verified["ok"])
+            self.assertEqual(verified["file_count"], 3)
 
             restored = root / "restored"
             output = io.StringIO()

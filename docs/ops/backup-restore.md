@@ -14,6 +14,7 @@ griosai backup --vault ~/GriosAI-vault --output ~/Backups
 If `--output` is a directory, GriosAI writes a timestamped
 `griosai-vault-<timestamp>.zip` inside it. If the exact output file already
 exists, the command allocates a unique filename unless `--overwrite` is set.
+The output archive must be outside the selected vault.
 
 The archive includes files under the standard vault directories:
 
@@ -27,6 +28,14 @@ Symlinks are skipped so a backup cannot silently capture files outside the
 selected vault.
 
 ## Restore A Backup
+
+Verify an archive without restoring it:
+
+```bash
+griosai verify-backup ~/Backups/griosai-vault-20260530T120000Z.zip
+```
+
+The command reads every archived file and verifies the manifest hashes.
 
 ```bash
 griosai restore ~/Backups/griosai-vault-20260530T120000Z.zip \
@@ -52,6 +61,9 @@ During restore, GriosAI verifies:
 - every file size matches the manifest
 - every file SHA-256 digest matches the manifest
 - existing files are not replaced unless `--overwrite` is set
+
+`griosai verify-backup` performs the archive and digest checks without writing
+to a vault.
 
 Backups can contain private notes, images, and dashboards. Keep backup archives
 out of git, cloud sync folders, and public issue attachments unless they are
