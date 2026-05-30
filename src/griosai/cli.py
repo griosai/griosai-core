@@ -14,6 +14,7 @@ from .mlflow_client import MlflowConfig, log_analysis_to_mlflow
 from .notebook import NotebookConnectorAdapter
 from .obsidian import ObsidianConfig, publish_analysis_to_obsidian
 from .ollama_client import DEFAULT_IMAGE_PROMPT, analyze_image
+from .openapi import openapi_json
 from .server import create_sample, run_server
 from .vault_archive import backup_vault, restore_vault, verify_backup
 
@@ -118,6 +119,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "verify-backup":
         result = verify_backup(Path(args.archive))
         print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        return 0
+    if args.command == "openapi":
+        print(openapi_json())
         return 0
     if args.command == "credential-lease":
         lease = CredentialBroker().issue_env_lease(
@@ -280,6 +284,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Verify a GriosAI vault zip backup without restoring it",
     )
     verify_backup_parser.add_argument("archive", help="Backup zip archive")
+
+    subparsers.add_parser("openapi", help="Print the local REST OpenAPI contract")
 
     lease = subparsers.add_parser(
         "credential-lease",

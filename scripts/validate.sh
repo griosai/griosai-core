@@ -16,6 +16,9 @@ echo "==> compileall"
 echo "==> whitespace diff check"
 git diff --check
 
+echo "==> openapi contract"
+"$PYTHON_BIN" -m griosai.cli openapi >/dev/null
+
 echo "==> temporary vault setup"
 TMPDIR="$(mktemp -d)"
 cleanup() {

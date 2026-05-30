@@ -214,9 +214,18 @@ griosai credential-lease \
 - `GET /api/health`: server and vault status.
 - `GET /api/notes`: generated markdown note summaries.
 - `GET /api/dashboards`: generated dashboard files.
+- `GET /api/openapi.json`: machine-readable REST contract.
 - `GET /dashboards/<file.html>`: dashboard HTML from the vault.
 - `POST /api/analyze-image`: JSON body with `image_path`, optional `prompt`,
   and optional `model`; runs the local Ollama adapter.
+
+Print the same contract from the CLI:
+
+```bash
+griosai openapi
+```
+
+See [docs/api/rest-api.md](docs/api/rest-api.md).
 
 ## Safety Defaults
 

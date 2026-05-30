@@ -26,6 +26,7 @@ griosai init --vault "$TMPDIR/vault"
 griosai sample --vault "$TMPDIR/vault"
 griosai add-analysis --vault "$TMPDIR/vault" --json-file ./examples/sample-analysis.json
 griosai notebook-packet --vault "$TMPDIR/vault" --json-file ./examples/sample-analysis.json
+griosai openapi >/dev/null
 BACKUP_JSON="$(griosai backup --vault "$TMPDIR/vault" --output "$TMPDIR")"
 ARCHIVE="$(printf '%s' "$BACKUP_JSON" | python3 -c 'import json, sys; print(json.load(sys.stdin)["archive_path"])')"
 griosai verify-backup "$ARCHIVE"

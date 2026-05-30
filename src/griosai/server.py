@@ -20,6 +20,7 @@ from .ollama_client import (
     UnsupportedImageError,
     analyze_image,
 )
+from .openapi import OPENAPI_PATH, openapi_spec
 
 
 MAX_BODY_BYTES = 2_000_000
@@ -84,6 +85,9 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
                 return
             if path == "/api/dashboards":
                 self._send_json({"dashboards": list_dashboards(config.vault_dir)})
+                return
+            if path == OPENAPI_PATH:
+                self._send_json(openapi_spec())
                 return
             if path.startswith("/dashboards/"):
                 self._serve_dashboard(path.removeprefix("/dashboards/"))

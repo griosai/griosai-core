@@ -1,5 +1,6 @@
 import io
 import http.client
+import json
 import socket
 import tempfile
 import threading
@@ -75,6 +76,16 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(response.status, 200)
             self.assertEqual(response.getheader("Cache-Control"), "no-store")
             self.assertEqual(response.getheader("X-Content-Type-Options"), "nosniff")
+
+    def test_get_openapi_returns_contract(self) -> None:
+        with running_server() as server:
+            response = request(server, "GET", "/api/openapi.json")
+            payload = json.loads(response.read().decode("utf-8"))
+
+            self.assertEqual(response.status, 200)
+            self.assertEqual(payload["openapi"], "3.1.0")
+            self.assertIn("/api/analyze-image", payload["paths"])
+            self.assertIn("bearerAuth", payload["components"]["securitySchemes"])
 
     def test_html_responses_include_security_headers(self) -> None:
         with running_server() as server:

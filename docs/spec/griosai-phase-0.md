@@ -32,6 +32,8 @@ dashboard without sending private data to a server.
   provider support.
 - Access: local HTTP server bound to `127.0.0.1`; phone access through
   Tailscale or trusted LAN only when explicitly requested.
+- API contract: OpenAPI document served at `/api/openapi.json` and printed by
+  `griosai openapi`.
 - Mutation APIs: bearer-token protected, JSON-only, and constrained to vault
   image paths for server-triggered analysis.
 
