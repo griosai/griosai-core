@@ -9,6 +9,7 @@ entrypoint across supported Python versions.
 - Python bytecode compilation for `src/griosai/`.
 - Git whitespace errors through `git diff --check`.
 - OpenAPI contract generation through `griosai openapi`.
+- Analysis input schema generation and sample payload validation.
 - Vault audit smoke test.
 - Lineage manifest verification smoke test.
 - CLI backup, verify-backup, and restore smoke test.

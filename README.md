@@ -41,7 +41,14 @@ is unavailable, the rest of the project still works.
 You can import a structured JSON payload without any model:
 
 ```bash
+griosai validate-analysis --json-file ./examples/sample-analysis.json
 griosai add-analysis --vault ~/GriosAI-vault --json-file ./examples/sample-analysis.json
+```
+
+Print the accepted payload contract:
+
+```bash
+griosai analysis-schema
 ```
 
 ## Notebook Packets
@@ -208,8 +215,8 @@ Run the same gate locally that CI runs:
 ```
 
 This covers unit tests, bytecode compilation, whitespace checks, a doctor smoke
-test, Kubernetes manifest rendering when `kubectl` is available, and a
-secret-pattern scan.
+test, analysis schema validation, Kubernetes manifest rendering when `kubectl`
+is available, and a secret-pattern scan.
 
 See [docs/ops/validation.md](docs/ops/validation.md) and
 [docs/ops/release-checklist.md](docs/ops/release-checklist.md).
@@ -254,12 +261,20 @@ Print the same contract from the CLI:
 griosai openapi
 ```
 
+Print the analysis import contract:
+
+```bash
+griosai analysis-schema
+```
+
 See [docs/api/rest-api.md](docs/api/rest-api.md).
 
 ## Safety Defaults
 
 - No secrets are required or stored.
 - No cloud provider is configured by default.
+- Analysis imports are validated against a documented local schema before
+  writing vault artifacts or handoff packets.
 - HTML dashboards use escaped content and no remote assets.
 - Notebook packets redact local paths and likely secrets before writing.
 - Lineage manifests preserve artifact hashes and MLflow correlation IDs without

@@ -5,6 +5,14 @@ import json
 import sys
 from pathlib import Path
 
+from .analysis_schema import (
+    analysis_input_schema_json,
+    format_analysis_validation_json,
+    format_analysis_validation_text,
+    require_valid_analysis_payload,
+    validate_analysis_payload,
+    validation_exit_code,
+)
 from .brain import AnalysisRecord, ensure_vault, slugify, write_analysis_note
 from .broker import CredentialBroker
 from .config import GriosConfig
@@ -146,6 +154,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "openapi":
         print(openapi_json())
         return 0
+    if args.command == "analysis-schema":
+        print(analysis_input_schema_json())
+        return 0
+    if args.command == "validate-analysis":
+        payload, source_bytes = _load_raw_json_payload(args.json_file)
+        findings = validate_analysis_payload(payload, source_bytes=source_bytes)
+        print(format_analysis_validation_json(findings) if args.json else format_analysis_validation_text(findings))
+        return validation_exit_code(findings)
     if args.command == "credential-lease":
         lease = CredentialBroker().issue_env_lease(
             secret_name=args.secret_name,
@@ -318,6 +334,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("openapi", help="Print the local REST OpenAPI contract")
 
+    subparsers.add_parser("analysis-schema", help="Print the analysis input JSON Schema")
+
+    validate_analysis = subparsers.add_parser(
+        "validate-analysis",
+        help="Validate an analysis JSON payload before import or handoff",
+    )
+    validate_analysis.add_argument(
+        "--json-file",
+        default="-",
+        help="Analysis JSON file to validate, or '-' for stdin",
+    )
+    validate_analysis.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+
     lease = subparsers.add_parser(
         "credential-lease",
         help="Validate a scoped runtime secret lease without printing the secret",
@@ -370,11 +399,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _load_json_payload(path: str) -> dict[str, object]:
+    parsed, source_bytes = _load_raw_json_payload(path)
+    return require_valid_analysis_payload(parsed, source_bytes=source_bytes)
+
+
+def _load_raw_json_payload(path: str) -> tuple[object, int]:
     text = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
     parsed = json.loads(text)
-    if not isinstance(parsed, dict):
-        raise ValueError("analysis JSON must be an object")
-    return parsed
+    return parsed, len(text.encode("utf-8"))
 
 
 if __name__ == "__main__":

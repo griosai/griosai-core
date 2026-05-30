@@ -19,6 +19,10 @@ git diff --check
 echo "==> openapi contract"
 "$PYTHON_BIN" -m griosai.cli openapi >/dev/null
 
+echo "==> analysis schema contract"
+"$PYTHON_BIN" -m griosai.cli analysis-schema >/dev/null
+"$PYTHON_BIN" -m griosai.cli validate-analysis --json-file examples/sample-analysis.json --json >/dev/null
+
 echo "==> temporary vault setup"
 TMPDIR="$(mktemp -d)"
 cleanup() {

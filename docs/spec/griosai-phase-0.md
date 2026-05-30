@@ -11,6 +11,8 @@ dashboard without sending private data to a server.
 - Brain: a plain-file vault, compatible with Obsidian and easy to back up.
 - Eyes: optional local Ollama vision model, starting with `qwen2.5vl:7b`.
 - Glue: Python package and CLI that a notebook connector can import.
+- Analysis schema: documented JSON contract and validator for manual imports,
+  notebook packets, Obsidian sync, and MLflow logging.
 - Notebook packets: sanitized Markdown, CSV, HTML, and manifest sources for
   NotebookLM-style import without exposing raw logs, local paths, or secrets.
 - Dashboard: self-contained HTML written into the vault.
@@ -38,6 +40,8 @@ dashboard without sending private data to a server.
   Tailscale or trusted LAN only when explicitly requested.
 - API contract: OpenAPI document served at `/api/openapi.json` and printed by
   `griosai openapi`.
+- Import contract: analysis JSON Schema printed by `griosai analysis-schema`
+  and enforced by `griosai validate-analysis`.
 - Mutation APIs: bearer-token protected, JSON-only, and constrained to vault
   image paths for server-triggered analysis.
 

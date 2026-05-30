@@ -11,6 +11,7 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Mapping
 
+from .analysis_schema import require_valid_analysis_payload
 from .brain import AnalysisRecord, ensure_vault, safe_child, slugify, unique_path
 from .dashboard import render_dashboard
 
@@ -70,7 +71,7 @@ class NotebookConnectorAdapter:
         record = (
             data
             if isinstance(data, AnalysisRecord)
-            else AnalysisRecord.from_mapping(dict(data))
+            else AnalysisRecord.from_mapping(require_valid_analysis_payload(dict(data)))
         )
         return write_notebook_packet(
             self.vault_dir,

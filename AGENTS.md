@@ -34,6 +34,7 @@ explicitly opts into LAN, VPN, or Tailscale access.
 
 ## Phase 0 Shape
 
+- `src/griosai/analysis_schema.py`: analysis JSON contract and validator.
 - `src/griosai/brain.py`: vault layout, markdown notes, safe paths.
 - `src/griosai/broker.py`: runtime-only scoped credential lease scaffold.
 - `src/griosai/dashboard.py`: static dashboard rendering.

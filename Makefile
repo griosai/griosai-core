@@ -1,4 +1,4 @@
-.PHONY: validate test compile doctor-smoke lineage-smoke kustomize
+.PHONY: validate test compile schema-smoke doctor-smoke lineage-smoke kustomize
 
 PYTHON ?= python3
 
@@ -10,6 +10,10 @@ test:
 
 compile:
 	PYTHONPATH=src $(PYTHON) -m compileall src/griosai
+
+schema-smoke:
+	PYTHONPATH=src $(PYTHON) -m griosai.cli analysis-schema >/dev/null
+	PYTHONPATH=src $(PYTHON) -m griosai.cli validate-analysis --json-file examples/sample-analysis.json --json
 
 doctor-smoke:
 	TMPDIR="$$(mktemp -d)"; \

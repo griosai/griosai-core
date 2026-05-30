@@ -24,6 +24,8 @@ Required evidence:
 TMPDIR="$(mktemp -d)"
 griosai init --vault "$TMPDIR/vault"
 griosai sample --vault "$TMPDIR/vault"
+griosai analysis-schema >/dev/null
+griosai validate-analysis --json-file ./examples/sample-analysis.json --json >/dev/null
 griosai add-analysis --vault "$TMPDIR/vault" --json-file ./examples/sample-analysis.json
 griosai notebook-packet --vault "$TMPDIR/vault" --json-file ./examples/sample-analysis.json
 griosai vault-audit --vault "$TMPDIR/vault" --json >/dev/null
@@ -47,6 +49,7 @@ Optional smoke tests:
 - No `.env`, vault, `private/`, `mlruns/`, `mlflow.db`, token, or secret files
   are staged.
 - No vault backup archives are staged.
+- Analysis schema validation passes for every checked-in example payload.
 - Vault audit has no fail-level findings before backup/export.
 - Lineage verification has no fail-level findings before MLflow logging or
   external handoff.
