@@ -70,6 +70,15 @@ class ServerTests(unittest.TestCase):
         with running_server() as server:
             response = request(server, "GET", "/api/health")
             self.assertEqual(response.status, 200)
+            self.assertEqual(response.getheader("Cache-Control"), "no-store")
+            self.assertEqual(response.getheader("X-Content-Type-Options"), "nosniff")
+
+    def test_html_responses_include_security_headers(self) -> None:
+        with running_server() as server:
+            response = request(server, "GET", "/")
+            self.assertEqual(response.status, 200)
+            self.assertIn("frame-ancestors 'none'", response.getheader("Content-Security-Policy"))
+            self.assertEqual(response.getheader("Referrer-Policy"), "no-referrer")
 
 
 class running_server:

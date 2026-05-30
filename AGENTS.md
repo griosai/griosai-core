@@ -25,6 +25,7 @@ explicitly opts into LAN, VPN, or Tailscale access.
 - `src/griosai/brain.py`: vault layout, markdown notes, safe paths.
 - `src/griosai/dashboard.py`: static dashboard rendering.
 - `src/griosai/notebook.py`: sanitized NotebookLM/notebook packet adapter.
+- `src/griosai/obsidian.py`: optional localhost-only Obsidian Local REST adapter.
 - `src/griosai/ollama_client.py`: optional local vision model calls.
 - `src/griosai/server.py`: local REST/dashboard server.
 - `src/griosai/cli.py`: operator entrypoints.

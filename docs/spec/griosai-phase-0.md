@@ -14,6 +14,8 @@ dashboard without sending private data to a server.
 - Notebook packets: sanitized Markdown, CSV, HTML, and manifest sources for
   NotebookLM-style import without exposing raw logs, local paths, or secrets.
 - Dashboard: self-contained HTML written into the vault.
+- Obsidian sync: optional Local REST API adapter, localhost-only and
+  token-authenticated.
 - Access: local HTTP server bound to `127.0.0.1`; phone access through
   Tailscale or trusted LAN only when explicitly requested.
 - Mutation APIs: bearer-token protected, JSON-only, and constrained to vault
@@ -30,7 +32,7 @@ dashboard without sending private data to a server.
 ## Later Tracks
 
 - Notebook connector wrapper for existing notebook workflows.
-- Obsidian Local REST API adapter, kept optional and localhost-only.
+- Tailscale setup guide/script.
 - Private phone companion flow over Tailscale.
 - Hardware tiers: phone-sized companion first, base-station compute later.
 - Scoped token broker before adding any cloud APIs.

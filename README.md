@@ -65,6 +65,23 @@ packet = adapter.write_packet({"title": "Notebook Source", "summary": "Local fir
 packet.connector_payload()
 ```
 
+## Optional Obsidian Sync
+
+If the Obsidian Local REST API plugin is running, write the same markdown note
+through localhost only:
+
+```bash
+read -rsp "Obsidian API key: " GRIOSAI_OBSIDIAN_API_KEY; echo
+export GRIOSAI_OBSIDIAN_API_KEY
+griosai obsidian-sync --json-file ./examples/sample-analysis.json
+```
+
+The default URL is `https://127.0.0.1:27124`. If your local plugin certificate is
+self-signed and not trusted by macOS, add `--insecure-skip-tls-verify`; the
+adapter still rejects non-localhost URLs.
+
+See [docs/integrations/obsidian-local-rest.md](docs/integrations/obsidian-local-rest.md).
+
 ## Phone Access
 
 The server intentionally binds to localhost by default. For phone viewing, keep
@@ -83,6 +100,8 @@ The server prints a per-run bearer token for mutation APIs. Pass
 private proxy changes the `Host` header, start the server with
 `--allow-host your-device.your-tailnet.ts.net`.
 
+See [docs/ops/private-phone-access.md](docs/ops/private-phone-access.md).
+
 ## Endpoints
 
 - `GET /`: local dashboard index.
@@ -99,6 +118,8 @@ private proxy changes the `Host` header, start the server with
 - No cloud provider is configured by default.
 - HTML dashboards use escaped content and no remote assets.
 - Notebook packets redact local paths and likely secrets before writing.
+- Obsidian sync is optional, token-based, and restricted to localhost URLs.
+- HTTP responses include no-store, nosniff, referrer, and CSP safety headers.
 - Vault writes are constrained to the selected vault directory.
 - Local services default to `127.0.0.1`.
 - Mutation APIs require bearer-token auth and `application/json`.

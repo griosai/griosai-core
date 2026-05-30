@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import secrets
 from dataclasses import replace
 from html import escape
@@ -23,6 +24,10 @@ from .ollama_client import (
 
 MAX_BODY_BYTES = 2_000_000
 ALLOWED_IMAGE_SUFFIXES = {".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"}
+HTML_CSP = (
+    "default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; "
+    "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+)
 
 
 class ClientError(ValueError):
@@ -135,7 +140,7 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
                 )
 
         def log_message(self, format: str, *args: object) -> None:
-            print(f"{self.address_string()} - {format % args}")
+            print(f"{self.address_string()} - {_redact_log_value(format % args)}")
 
         def _serve_dashboard(self, raw_name: str) -> None:
             name = unquote(raw_name)
@@ -218,6 +223,7 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
+            self._send_safety_headers()
             self.end_headers()
             self.wfile.write(body)
 
@@ -231,8 +237,15 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(encoded)))
+            self.send_header("Content-Security-Policy", HTML_CSP)
+            self._send_safety_headers()
             self.end_headers()
             self.wfile.write(encoded)
+
+        def _send_safety_headers(self) -> None:
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
 
     return GriosHandler
 
@@ -336,3 +349,11 @@ def _host_without_port(value: str) -> str:
         if end != -1:
             return host[1:end]
     return host.rsplit(":", 1)[0] if ":" in host else host
+
+
+def _redact_log_value(value: str) -> str:
+    return re.sub(
+        r"(?i)(authorization|api[_-]?key|token|secret|password)=([^&\s]+)",
+        r"\1=[redacted]",
+        value,
+    )

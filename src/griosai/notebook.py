@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import re
 from dataclasses import dataclass, replace
@@ -119,6 +120,9 @@ def validate_notebook_packet(packet_dir: Path) -> list[str]:
             findings.append(f"hidden file is not allowed: {path.name}")
         if any(fnmatch(path.name, pattern) for pattern in DEFAULT_DENY_SOURCES):
             findings.append(f"denied source file is not allowed: {path.name}")
+        if path.is_dir():
+            findings.append(f"subdirectory is not allowed: {path.name}")
+            continue
         if path.is_symlink():
             findings.append(f"symlink is not allowed: {path.name}")
             continue
@@ -168,11 +172,14 @@ def _packet_contents(
     sanitized: AnalysisRecord,
     original: AnalysisRecord,
 ) -> dict[str, str]:
-    manifest = _manifest(packet, sanitized, original)
-    return {
+    source_contents = {
         "index.md": _index_markdown(sanitized, packet),
         "tables.csv": _tables_csv(sanitized),
         "report.html": render_dashboard(sanitized),
+    }
+    manifest = _manifest(packet, sanitized, original, _source_hashes(source_contents))
+    return {
+        **source_contents,
         "manifest.json": json.dumps(manifest, indent=2, sort_keys=True) + "\n",
     }
 
@@ -247,12 +254,14 @@ def _manifest(
     packet: NotebookPacket,
     sanitized: AnalysisRecord,
     original: AnalysisRecord,
+    source_hashes: dict[str, str],
 ) -> dict[str, object]:
     return {
         "dashboard_id": packet.dashboard_id,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "redaction_policy_version": REDACTION_POLICY_VERSION,
         "sources": list(packet.sources),
+        "source_sha256": source_hashes,
         "deny_sources": list(packet.deny_sources),
         "record": {
             "title": sanitized.title,
@@ -276,6 +285,13 @@ def _markdown_list(items: list[str]) -> str:
     if not items:
         return "- None captured yet."
     return "\n".join(f"- {item}" for item in items)
+
+
+def _source_hashes(contents: Mapping[str, str]) -> dict[str, str]:
+    return {
+        name: hashlib.sha256(content.encode("utf-8")).hexdigest()
+        for name, content in sorted(contents.items())
+    }
 
 
 def _validate_packet_contents(contents: Mapping[str, str]) -> None:

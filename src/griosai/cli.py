@@ -9,6 +9,7 @@ from .brain import AnalysisRecord, ensure_vault, slugify, write_analysis_note
 from .config import GriosConfig
 from .dashboard import write_dashboard
 from .notebook import NotebookConnectorAdapter
+from .obsidian import ObsidianConfig, publish_analysis_to_obsidian
 from .ollama_client import DEFAULT_IMAGE_PROMPT, analyze_image
 from .server import create_sample, run_server
 
@@ -60,6 +61,24 @@ def main(argv: list[str] | None = None) -> int:
         packet = adapter.write_packet(record, slug=args.slug)
         print(f"Wrote notebook packet: {packet.packet_dir}")
         print(json.dumps(packet.connector_payload(), indent=2))
+        return 0
+    if args.command == "obsidian-sync":
+        payload = _load_json_payload(args.json_file)
+        record = AnalysisRecord.from_mapping(payload, model="manual")
+        verify_tls = False if args.insecure_skip_tls_verify else None
+        result = publish_analysis_to_obsidian(
+            ObsidianConfig.from_env(
+                url=args.obsidian_url,
+                api_key=args.obsidian_api_key,
+                verify_tls=verify_tls,
+            ),
+            record,
+            folder=args.folder,
+            slug=args.slug,
+            overwrite=args.overwrite,
+        )
+        action = "Replaced" if result.replaced else "Wrote"
+        print(f"{action} Obsidian note: {result.path}")
         return 0
     if args.command == "serve":
         config = GriosConfig.from_env(
@@ -119,6 +138,34 @@ def build_parser() -> argparse.ArgumentParser:
         "--packet-root",
         default=None,
         help="Optional packet root inside the selected vault",
+    )
+
+    obsidian = subparsers.add_parser(
+        "obsidian-sync",
+        help="Write an analysis note through Obsidian Local REST API",
+    )
+    obsidian.add_argument(
+        "--json-file",
+        default="-",
+        help="Analysis JSON file to sync, or '-' for stdin",
+    )
+    obsidian.add_argument(
+        "--folder",
+        default="GriosAI/notes",
+        help="Relative Obsidian folder for synced notes",
+    )
+    obsidian.add_argument("--slug", default=None, help="Output slug")
+    obsidian.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace the existing Obsidian note instead of allocating a unique path",
+    )
+    obsidian.add_argument("--obsidian-url", default=None, help="Local Obsidian REST URL")
+    obsidian.add_argument("--obsidian-api-key", default=None, help="Local Obsidian REST API key")
+    obsidian.add_argument(
+        "--insecure-skip-tls-verify",
+        action="store_true",
+        help="Allow a localhost self-signed Obsidian certificate",
     )
 
     serve = subparsers.add_parser("serve", help="Run the local dashboard server")

@@ -32,6 +32,7 @@ class NotebookTests(unittest.TestCase):
             manifest = json.loads((packet.packet_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["record"]["raw_key_count"], 1)
             self.assertEqual(manifest["record"]["source_image_name"], "image.png")
+            self.assertEqual(len(manifest["source_sha256"]["index.md"]), 64)
             self.assertFalse(validate_notebook_packet(packet.packet_dir))
 
             combined = "\n".join(path.read_text(encoding="utf-8") for path in packet.source_paths())
@@ -69,16 +70,19 @@ class NotebookTests(unittest.TestCase):
             packet_dir.mkdir()
             (packet_dir / ".env").write_text("TOKEN=abc", encoding="utf-8")
             (packet_dir / "raw-log.jsonl").write_text("{}", encoding="utf-8")
+            (packet_dir / "nested").mkdir()
 
             findings = validate_notebook_packet(packet_dir)
             self.assertTrue(any("hidden file" in finding for finding in findings))
             self.assertTrue(any("denied source file" in finding for finding in findings))
+            self.assertTrue(any("subdirectory" in finding for finding in findings))
 
     def test_redact_text_removes_paths_and_likely_secrets(self) -> None:
-        text = redact_text("path=/Users/gustavorios/x token=abc123456 sk-abcdefghijklmnop")
+        openai_style_key = "sk-" + "abcdefghijklmnop"
+        text = redact_text(f"path=/Users/gustavorios/x token=abc123456 {openai_style_key}")
         self.assertNotIn("/Users/gustavorios", text)
         self.assertNotIn("abc123456", text)
-        self.assertNotIn("sk-abcdefghijklmnop", text)
+        self.assertNotIn(openai_style_key, text)
 
     def test_cli_notebook_packet_imports_json_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
