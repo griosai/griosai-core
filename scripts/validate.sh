@@ -29,6 +29,18 @@ cleanup() {
   rm -rf "$TMPDIR"
 }
 trap cleanup EXIT
+
+echo "==> cli expected-error smoke"
+if "$PYTHON_BIN" -m griosai.cli add-analysis --vault "$TMPDIR/vault" --json-file "$TMPDIR/missing.json" 2>"$TMPDIR/cli-error.log"; then
+  echo "Expected missing analysis JSON to fail." >&2
+  exit 1
+fi
+grep -q '^error:' "$TMPDIR/cli-error.log"
+if grep -q 'Traceback' "$TMPDIR/cli-error.log"; then
+  echo "CLI expected-error path printed a traceback." >&2
+  exit 1
+fi
+
 "$PYTHON_BIN" -m griosai.cli init --vault "$TMPDIR/vault" >/dev/null
 "$PYTHON_BIN" -m griosai.cli sample --vault "$TMPDIR/vault" >/dev/null
 "$PYTHON_BIN" -m griosai.cli vault-audit --vault "$TMPDIR/vault" --json >/dev/null

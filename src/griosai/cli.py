@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .analysis_schema import (
+    AnalysisValidationError,
     analysis_input_schema_json,
     format_analysis_validation_json,
     format_analysis_validation_text,
@@ -14,7 +15,7 @@ from .analysis_schema import (
     validation_exit_code,
 )
 from .brain import AnalysisRecord, ensure_vault, slugify, write_analysis_note
-from .broker import CredentialBroker
+from .broker import CredentialBroker, CredentialBrokerError
 from .config import GriosConfig
 from .dashboard import write_dashboard
 from .doctor import doctor_exit_code, format_doctor_json, format_doctor_text, run_doctor
@@ -25,17 +26,34 @@ from .lineage import (
     verify_lineage,
     write_lineage_manifest,
 )
-from .mlflow_client import MlflowConfig, log_analysis_to_mlflow
-from .notebook import NotebookConnectorAdapter
-from .obsidian import ObsidianConfig, publish_analysis_to_obsidian
-from .ollama_client import DEFAULT_IMAGE_PROMPT, analyze_image
+from .mlflow_client import MlflowConfig, MlflowError, log_analysis_to_mlflow
+from .notebook import NotebookConnectorAdapter, NotebookPacketError
+from .obsidian import ObsidianConfig, ObsidianError, publish_analysis_to_obsidian
+from .ollama_client import (
+    DEFAULT_IMAGE_PROMPT,
+    ImageTooLargeError,
+    OllamaError,
+    UnsupportedImageError,
+    analyze_image,
+)
 from .openapi import openapi_json
 from .server import create_sample, run_server
-from .vault_archive import backup_vault, restore_vault, verify_backup
+from .vault_archive import VaultArchiveError, backup_vault, restore_vault, verify_backup
 from .vault_audit import audit_exit_code, audit_vault, format_audit_json, format_audit_text
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        return _main(argv)
+    except KeyboardInterrupt:
+        print("error: interrupted", file=sys.stderr)
+        return 130
+    except _CLI_USER_ERRORS as exc:
+        print(_format_cli_error(exc), file=sys.stderr)
+        return 1
+
+
+def _main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "init":
@@ -407,6 +425,37 @@ def _load_raw_json_payload(path: str) -> tuple[object, int]:
     text = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
     parsed = json.loads(text)
     return parsed, len(text.encode("utf-8"))
+
+
+_CLI_USER_ERRORS = (
+    AnalysisValidationError,
+    CredentialBrokerError,
+    FileExistsError,
+    FileNotFoundError,
+    ImageTooLargeError,
+    json.JSONDecodeError,
+    MlflowError,
+    NotebookPacketError,
+    ObsidianError,
+    OllamaError,
+    OSError,
+    PermissionError,
+    UnsupportedImageError,
+    ValueError,
+    VaultArchiveError,
+)
+
+
+def _format_cli_error(exc: BaseException) -> str:
+    if isinstance(exc, json.JSONDecodeError):
+        message = f"invalid JSON at line {exc.lineno}, column {exc.colno}: {exc.msg}"
+    else:
+        message = str(exc).strip() or exc.__class__.__name__
+    lines = message.splitlines() or [exc.__class__.__name__]
+    return "\n".join(
+        f"error: {line}" if index == 0 else f"       {line}"
+        for index, line in enumerate(lines)
+    )
 
 
 if __name__ == "__main__":

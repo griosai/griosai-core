@@ -2,7 +2,7 @@ import io
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from griosai.analysis_schema import (
@@ -88,9 +88,15 @@ class AnalysisSchemaTests(unittest.TestCase):
             payload = Path(tmp) / "analysis.json"
             payload.write_text(json.dumps({"title": "Missing summary"}), encoding="utf-8")
 
-            with self.assertRaises(ValueError):
-                main(["add-analysis", "--vault", str(Path(tmp) / "vault"), "--json-file", str(payload)])
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                self.assertEqual(
+                    main(["add-analysis", "--vault", str(Path(tmp) / "vault"), "--json-file", str(payload)]),
+                    1,
+                )
 
+            self.assertIn("summary-required", stderr.getvalue())
+            self.assertNotIn("Traceback", stderr.getvalue())
             self.assertFalse((Path(tmp) / "vault").exists())
 
     def test_notebook_adapter_rejects_invalid_mapping_payload(self) -> None:

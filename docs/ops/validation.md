@@ -10,6 +10,7 @@ entrypoint across supported Python versions.
 - Git whitespace errors through `git diff --check`.
 - OpenAPI contract generation through `griosai openapi`.
 - Analysis input schema generation and sample payload validation.
+- CLI expected-error coverage for concise nonzero failures without tracebacks.
 - Vault audit smoke test.
 - Lineage manifest verification smoke test.
 - CLI backup, verify-backup, and restore smoke test.

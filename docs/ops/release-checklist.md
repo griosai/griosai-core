@@ -17,6 +17,7 @@ Required evidence:
 - `griosai doctor` reports zero failures against a fresh vault.
 - Kubernetes Kustomize renders pass when `kubectl` is available.
 - Secret-pattern scan returns no findings.
+- Expected CLI failures return concise stderr output without Python tracebacks.
 
 ## Manual Smoke
 
@@ -31,6 +32,12 @@ griosai notebook-packet --vault "$TMPDIR/vault" --json-file ./examples/sample-an
 griosai vault-audit --vault "$TMPDIR/vault" --json >/dev/null
 griosai lineage-verify --vault "$TMPDIR/vault" --json >/dev/null
 griosai openapi >/dev/null
+if griosai add-analysis --vault "$TMPDIR/vault" --json-file "$TMPDIR/missing.json" 2>"$TMPDIR/err.log"; then
+  echo "expected missing input to fail" >&2
+  exit 1
+fi
+grep -q '^error:' "$TMPDIR/err.log"
+! grep -q 'Traceback' "$TMPDIR/err.log"
 BACKUP_JSON="$(griosai backup --vault "$TMPDIR/vault" --output "$TMPDIR")"
 ARCHIVE="$(printf '%s' "$BACKUP_JSON" | python3 -c 'import json, sys; print(json.load(sys.stdin)["archive_path"])')"
 griosai verify-backup "$ARCHIVE"

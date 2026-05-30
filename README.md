@@ -221,6 +221,10 @@ is available, and a secret-pattern scan.
 See [docs/ops/validation.md](docs/ops/validation.md) and
 [docs/ops/release-checklist.md](docs/ops/release-checklist.md).
 
+Expected operator errors, such as invalid JSON, missing files, unsafe paths, or
+unreachable local adapters, return nonzero exit codes with concise stderr
+messages instead of Python tracebacks.
+
 ## Safety Doctor And Credential Leases
 
 Run the local readiness checker before exposing a dashboard or syncing through
@@ -291,6 +295,8 @@ See [docs/api/rest-api.md](docs/api/rest-api.md).
   the cluster CNI.
 - HTTP responses include no-store, nosniff, referrer, and CSP safety headers.
 - Credential leases are runtime-only, scoped, short-lived, and redacted in logs.
+- CLI commands return concise nonzero errors for expected operator failures
+  without printing stack traces.
 - `griosai doctor` checks local config, vault layout, packets, and placeholders.
 - Vault writes are constrained to the selected vault directory.
 - Local services default to `127.0.0.1`.

@@ -3,7 +3,7 @@ import json
 import os
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -66,6 +66,16 @@ class CliTests(unittest.TestCase):
                     0,
                 )
             self.assertEqual(json.loads(output.getvalue())["summary"]["fail"], 0)
+
+    def test_cli_expected_errors_are_concise_without_traceback(self) -> None:
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            code = main(["add-analysis", "--vault", "/tmp/griosai-vault", "--json-file", "/no/such/file.json"])
+
+        self.assertEqual(code, 1)
+        self.assertIn("error:", stderr.getvalue())
+        self.assertIn("No such file", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
 
 if __name__ == "__main__":
