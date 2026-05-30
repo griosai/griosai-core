@@ -17,6 +17,8 @@ dashboard without sending private data to a server.
 - Backup/restore: manifest-backed zip archives for the plain-file vault,
   with symlink skipping, digest verification, path validation, and
   non-clobbering restore by default.
+- Vault audit: read-only inventory with relative paths, sizes, SHA-256 hashes,
+  layout findings, and secret-looking text warnings.
 - Obsidian sync: optional Local REST API adapter, localhost-only and
   token-authenticated.
 - MLflow tracking: optional REST adapter that logs privacy-preserving metadata

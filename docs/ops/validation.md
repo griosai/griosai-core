@@ -9,6 +9,7 @@ entrypoint across supported Python versions.
 - Python bytecode compilation for `src/griosai/`.
 - Git whitespace errors through `git diff --check`.
 - OpenAPI contract generation through `griosai openapi`.
+- Vault audit smoke test.
 - CLI backup, verify-backup, and restore smoke test.
 - `griosai doctor` against a fresh vault and this repo.
 - Kubernetes Kustomize rendering when `kubectl` is installed.

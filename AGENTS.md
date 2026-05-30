@@ -45,5 +45,6 @@ explicitly opts into LAN, VPN, or Tailscale access.
 - `src/griosai/openapi.py`: machine-readable local REST API contract.
 - `src/griosai/server.py`: local REST/dashboard server.
 - `src/griosai/vault_archive.py`: safe vault backup and restore.
+- `src/griosai/vault_audit.py`: read-only vault inventory and integrity report.
 - `src/griosai/cli.py`: operator entrypoints.
 - `scripts/validate.sh`: canonical local and CI validation gate.

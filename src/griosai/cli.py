@@ -17,6 +17,7 @@ from .ollama_client import DEFAULT_IMAGE_PROMPT, analyze_image
 from .openapi import openapi_json
 from .server import create_sample, run_server
 from .vault_archive import backup_vault, restore_vault, verify_backup
+from .vault_audit import audit_exit_code, audit_vault, format_audit_json, format_audit_text
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -140,6 +141,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(format_doctor_json(checks) if args.json else format_doctor_text(checks))
         return doctor_exit_code(checks)
+    if args.command == "vault-audit":
+        audit = audit_vault(Path(args.vault))
+        print(format_audit_json(audit) if args.json else format_audit_text(audit))
+        return audit_exit_code(audit)
     if args.command == "serve":
         config = GriosConfig.from_env(
             vault_dir=args.vault,
@@ -306,6 +311,13 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--vault", default=None, help="Optional vault directory to inspect")
     doctor.add_argument("--repo", default=None, help="Optional repository directory to inspect")
     doctor.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+
+    vault_audit = subparsers.add_parser(
+        "vault-audit",
+        help="Inventory and integrity-check a GriosAI vault without reading raw content into output",
+    )
+    vault_audit.add_argument("--vault", required=True, help="Vault directory")
+    vault_audit.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
 
     serve = subparsers.add_parser("serve", help="Run the local dashboard server")
     serve.add_argument("--vault", required=True, help="Vault directory")

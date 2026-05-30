@@ -90,6 +90,20 @@ griosai verify-backup ~/Backups/griosai-vault-20260530T120000Z.zip
 
 See [docs/ops/backup-restore.md](docs/ops/backup-restore.md).
 
+## Vault Audit
+
+Inventory the vault without printing raw note, dashboard, image, or packet
+content:
+
+```bash
+griosai vault-audit --vault ~/GriosAI-vault --json
+```
+
+The audit reports file counts, byte totals, SHA-256 hashes, layout findings,
+symlinks, oversized files, and secret-looking text warnings.
+
+See [docs/ops/vault-audit.md](docs/ops/vault-audit.md).
+
 ## Optional Obsidian Sync
 
 If the Obsidian Local REST API plugin is running, write the same markdown note
@@ -235,6 +249,8 @@ See [docs/api/rest-api.md](docs/api/rest-api.md).
 - Notebook packets redact local paths and likely secrets before writing.
 - Vault backups verify file hashes, skip symlinks, and restore without
   clobbering by default.
+- `griosai vault-audit` inventories file hashes and risky vault metadata without
+  printing raw content.
 - Obsidian sync is optional, token-based, and restricted to localhost URLs.
 - MLflow tracking is optional, metadata-only, and localhost-only unless
   explicitly allowed.
