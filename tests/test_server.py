@@ -136,6 +136,28 @@ class ServerTests(unittest.TestCase):
             self.assertTrue(Path(payload["lineage"]).exists())
             self.assertEqual(Path(payload["lineage"]).parent, vault / "lineage")
 
+    def test_post_analyze_image_missing_file_does_not_disclose_path(self) -> None:
+        with running_server() as server:
+            vault = Path(server.griosai_vault_dir)
+            image = vault / "images" / "missing-private.png"
+            body = json.dumps({"image_path": str(image)}).encode("utf-8")
+
+            response = request(
+                server,
+                "POST",
+                "/api/analyze-image",
+                body=body,
+                headers={
+                    "Authorization": "Bearer test-token",
+                    "Content-Type": "application/json",
+                },
+            )
+            payload = json.loads(response.read().decode("utf-8"))
+
+            self.assertEqual(response.status, 404)
+            self.assertEqual(payload["error"], "image not found")
+            self.assertNotIn(str(image), json.dumps(payload))
+
     def test_post_analyze_image_internal_error_does_not_disclose_paths(self) -> None:
         with running_server() as server:
             vault = Path(server.griosai_vault_dir)

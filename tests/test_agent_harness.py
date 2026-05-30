@@ -1,10 +1,14 @@
 import io
 import json
 import tempfile
+import threading
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
+import griosai.agent_harness as agent_harness_module
 from griosai.agent_harness import (
     ExperimentSpec,
     adjudicate_agent_plan,
@@ -2558,6 +2562,51 @@ class AgentHarnessTests(unittest.TestCase):
             self.assertEqual(payload["summary"]["expired_claims"], 0)
             with self.assertRaises(FileNotFoundError):
                 claim_agent_run(vault, plan_id=plan.plan_id, client_id="worker-two")
+
+    def test_parallel_claims_do_not_duplicate_pending_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = ensure_vault(Path(tmp) / "vault")
+            plan = create_agent_plan(
+                vault,
+                AGENT_CONFIG,
+                subject_key="parallel-claim-race",
+                lanes=("scout",),
+                replicas=2,
+            )
+            original_write = agent_harness_module.write_unique_text
+            results: list[tuple[str, str]] = []
+            errors: list[BaseException] = []
+
+            def delayed_write(path: Path, content: str, *, encoding: str = "utf-8") -> Path:
+                if "/claims/" in str(path):
+                    time.sleep(0.05)
+                return original_write(path, content, encoding=encoding)
+
+            def worker(client_id: str) -> None:
+                try:
+                    claim = claim_agent_run(
+                        vault,
+                        plan_id=plan.plan_id,
+                        client_id=client_id,
+                        ttl_seconds=120,
+                    )
+                    results.append((client_id, claim.run_id))
+                except BaseException as exc:
+                    errors.append(exc)
+
+            with patch("griosai.agent_harness.write_unique_text", delayed_write):
+                threads = [
+                    threading.Thread(target=worker, args=("worker-one",)),
+                    threading.Thread(target=worker, args=("worker-two",)),
+                ]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join(timeout=5)
+
+            self.assertEqual(errors, [])
+            self.assertEqual(len(results), 2)
+            self.assertEqual(len({run_id for _client_id, run_id in results}), 2)
 
     def test_work_packet_sanitizes_claimed_run_handoff(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

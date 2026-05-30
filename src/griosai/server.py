@@ -141,8 +141,8 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
                 )
             except ClientError as exc:
                 self._send_json({"error": str(exc)}, status=exc.status)
-            except FileNotFoundError as exc:
-                self._send_json({"error": str(exc)}, status=HTTPStatus.NOT_FOUND)
+            except FileNotFoundError:
+                self._send_json({"error": "image not found"}, status=HTTPStatus.NOT_FOUND)
             except ImageTooLargeError as exc:
                 self._send_json({"error": str(exc)}, status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
             except UnsupportedImageError as exc:
@@ -370,7 +370,7 @@ def _resolve_api_image_path(vault_dir: Path, raw_path: str) -> Path:
             HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
         )
     if not image.exists():
-        raise FileNotFoundError(image)
+        raise FileNotFoundError()
     if not image.is_file():
         raise ClientError(
             "REST image_path must point to a regular image file",

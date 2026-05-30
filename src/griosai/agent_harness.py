@@ -5,6 +5,8 @@ import json
 import math
 import re
 import secrets
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from html import escape
@@ -84,6 +86,9 @@ DEFAULT_PARALLEL_LANES = ("scout", "implementer", "reviewer", "adversary")
 DEFAULT_MERGE_STRATEGY = "scoreboard"
 DEFAULT_CLAIM_TTL_SECONDS = 3600
 DEFAULT_CLAIM_STRATEGY = "fifo"
+CLAIM_LOCK_TIMEOUT_SECONDS = 30.0
+CLAIM_LOCK_POLL_SECONDS = 0.02
+CLAIM_LOCK_STALE_SECONDS = 120.0
 CLAIM_STRATEGIES = (
     "fifo",
     "lane-balanced",
@@ -3233,79 +3238,80 @@ def claim_agent_run(
     experiment = _plan_experiment(plan)
     experiment_slug = str(experiment["slug"])
     root = safe_child(vault, "agent-runs", experiment_slug)
-    _raise_for_active_holds(root, scopes=("dispatch",))
-    outcomes_by_run = _latest_outcomes_by_run(_load_outcome_records(root))
-    run_records_by_id = {
-        str(item.get("run_id")): item
-        for item in _load_run_records(root)
-        if isinstance(item.get("run_id"), str)
-    }
-    claims = _load_schema_records(root, "claims", AGENT_CLAIM_SCHEMA)
-    heartbeats = _load_schema_records(root, "heartbeats", AGENT_HEARTBEAT_SCHEMA)
-    now = _utc_now()
-    active_claims = _active_claims_by_run(claims, heartbeats=heartbeats, now=now)
-    active_quarantines = _active_agent_quarantines(root, now=now)
-    plan_runs = _effective_plan_runs(root, plan)
-    candidate_pool = _claim_candidates(
-        plan_runs,
-        requested_lane=requested_lane,
-        outcomes_by_run=outcomes_by_run,
-        active_claims=active_claims,
-        active_quarantines=[],
-        run_records_by_id=run_records_by_id,
-    )
-    candidates = _claim_candidates(
-        plan_runs,
-        requested_lane=requested_lane,
-        outcomes_by_run=outcomes_by_run,
-        active_claims=active_claims,
-        active_quarantines=active_quarantines,
-        run_records_by_id=run_records_by_id,
-    )
-    candidate = _select_claim_candidate(
-        plan_runs,
-        candidates,
-        requested_lane=requested_lane,
-        outcomes_by_run=outcomes_by_run,
-        active_claims=active_claims,
-        strategy=strategy,
-    )
-    if candidate is None:
-        raise FileNotFoundError("No unclaimed pending agent run is available for this plan")
+    with _agent_claim_lock(root, plan_id):
+        _raise_for_active_holds(root, scopes=("dispatch",))
+        outcomes_by_run = _latest_outcomes_by_run(_load_outcome_records(root))
+        run_records_by_id = {
+            str(item.get("run_id")): item
+            for item in _load_run_records(root)
+            if isinstance(item.get("run_id"), str)
+        }
+        claims = _load_schema_records(root, "claims", AGENT_CLAIM_SCHEMA)
+        heartbeats = _load_schema_records(root, "heartbeats", AGENT_HEARTBEAT_SCHEMA)
+        now = _utc_now()
+        active_claims = _active_claims_by_run(claims, heartbeats=heartbeats, now=now)
+        active_quarantines = _active_agent_quarantines(root, now=now)
+        plan_runs = _effective_plan_runs(root, plan)
+        candidate_pool = _claim_candidates(
+            plan_runs,
+            requested_lane=requested_lane,
+            outcomes_by_run=outcomes_by_run,
+            active_claims=active_claims,
+            active_quarantines=[],
+            run_records_by_id=run_records_by_id,
+        )
+        candidates = _claim_candidates(
+            plan_runs,
+            requested_lane=requested_lane,
+            outcomes_by_run=outcomes_by_run,
+            active_claims=active_claims,
+            active_quarantines=active_quarantines,
+            run_records_by_id=run_records_by_id,
+        )
+        candidate = _select_claim_candidate(
+            plan_runs,
+            candidates,
+            requested_lane=requested_lane,
+            outcomes_by_run=outcomes_by_run,
+            active_claims=active_claims,
+            strategy=strategy,
+        )
+        if candidate is None:
+            raise FileNotFoundError("No unclaimed pending agent run is available for this plan")
 
-    claimed_at_dt = _utc_now()
-    expires_at_dt = claimed_at_dt + timedelta(seconds=ttl)
-    claim_id = _claim_id(claimed_at_dt.isoformat(), plan_id, str(candidate["run_id"]), client)
-    payload: dict[str, object] = {
-        "schema": AGENT_CLAIM_SCHEMA,
-        "claim_id": claim_id,
-        "generated_at": claimed_at_dt.isoformat(),
-        "plan_id": plan_id,
-        "experiment": experiment,
-        "plan_path": _relative_vault_path(vault, plan_path),
-        "run": candidate,
-        "claim": {
-            "client_id": client,
-            "claimed_at": claimed_at_dt.isoformat(),
-            "expires_at": expires_at_dt.isoformat(),
-            "ttl_seconds": ttl,
-            "status": "active",
-        },
-        "scheduler": {
-            "strategy": strategy,
-            "lane_id": requested_lane,
-            "candidate_count": len(candidates),
-            "quarantined_candidate_count": len(candidate_pool) - len(candidates),
-            "active_quarantine_count": len(active_quarantines),
-        },
-        "privacy": {
-            "mode": "metadata-only",
-            "omitted_fields": ["prompt_text", "raw_transcript", "raw_output", "error_message"],
-        },
-    }
-    claim_path = safe_child(root, "claims", f"{claim_id}.json")
-    claim_path.parent.mkdir(parents=True, exist_ok=True)
-    written = write_unique_text(claim_path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        claimed_at_dt = _utc_now()
+        expires_at_dt = claimed_at_dt + timedelta(seconds=ttl)
+        claim_id = _claim_id(claimed_at_dt.isoformat(), plan_id, str(candidate["run_id"]), client)
+        payload: dict[str, object] = {
+            "schema": AGENT_CLAIM_SCHEMA,
+            "claim_id": claim_id,
+            "generated_at": claimed_at_dt.isoformat(),
+            "plan_id": plan_id,
+            "experiment": experiment,
+            "plan_path": _relative_vault_path(vault, plan_path),
+            "run": candidate,
+            "claim": {
+                "client_id": client,
+                "claimed_at": claimed_at_dt.isoformat(),
+                "expires_at": expires_at_dt.isoformat(),
+                "ttl_seconds": ttl,
+                "status": "active",
+            },
+            "scheduler": {
+                "strategy": strategy,
+                "lane_id": requested_lane,
+                "candidate_count": len(candidates),
+                "quarantined_candidate_count": len(candidate_pool) - len(candidates),
+                "active_quarantine_count": len(active_quarantines),
+            },
+            "privacy": {
+                "mode": "metadata-only",
+                "omitted_fields": ["prompt_text", "raw_transcript", "raw_output", "error_message"],
+            },
+        }
+        claim_path = safe_child(root, "claims", f"{claim_id}.json")
+        claim_path.parent.mkdir(parents=True, exist_ok=True)
+        written = write_unique_text(claim_path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return AgentClaimResult(
         experiment=experiment_slug,
         plan_id=plan_id,
@@ -18126,6 +18132,52 @@ def _claim_strategy(value: str | None) -> str:
         allowed = ", ".join(CLAIM_STRATEGIES)
         raise ValueError(f"claim_strategy must be one of: {allowed}")
     return strategy
+
+
+@contextmanager
+def _agent_claim_lock(root: Path, plan_id: str):
+    safe_plan = _safe_plan_id(plan_id)
+    lock_path = safe_child(root, "claim-locks", f"{safe_plan}.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + CLAIM_LOCK_TIMEOUT_SECONDS
+    acquired = False
+    while not acquired:
+        try:
+            with lock_path.open("x", encoding="utf-8") as handle:
+                handle.write(
+                    json.dumps(
+                        {
+                            "schema": "griosai.agent-claim-lock.v1",
+                            "plan_id": safe_plan,
+                            "created_at": _now(),
+                        },
+                        sort_keys=True,
+                    )
+                    + "\n"
+                )
+            acquired = True
+        except FileExistsError:
+            try:
+                age = time.time() - lock_path.stat().st_mtime
+            except FileNotFoundError:
+                continue
+            if age > CLAIM_LOCK_STALE_SECONDS:
+                try:
+                    lock_path.unlink()
+                    continue
+                except FileNotFoundError:
+                    continue
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"Timed out waiting for agent claim lock: {safe_plan}")
+            time.sleep(CLAIM_LOCK_POLL_SECONDS)
+    try:
+        yield
+    finally:
+        if acquired:
+            try:
+                lock_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def _claim_candidates(
