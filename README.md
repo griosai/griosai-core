@@ -145,6 +145,21 @@ before treating it as HA infrastructure.
 
 See [docs/ops/kubernetes-mlflow.md](docs/ops/kubernetes-mlflow.md).
 
+## Validation
+
+Run the same gate locally that CI runs:
+
+```bash
+./scripts/validate.sh
+```
+
+This covers unit tests, bytecode compilation, whitespace checks, a doctor smoke
+test, Kubernetes manifest rendering when `kubectl` is available, and a
+secret-pattern scan.
+
+See [docs/ops/validation.md](docs/ops/validation.md) and
+[docs/ops/release-checklist.md](docs/ops/release-checklist.md).
+
 ## Safety Doctor And Credential Leases
 
 Run the local readiness checker before exposing a dashboard or syncing through

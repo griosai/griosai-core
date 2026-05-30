@@ -20,6 +20,8 @@ dashboard without sending private data to a server.
   only, localhost-only unless remote tracking is explicitly allowed.
 - Kubernetes: optional deployment manifests and container image definitions for
   private ClusterIP operation with PVC-backed vault storage.
+- Validation: one local script and CI workflow run tests, compile checks,
+  doctor smoke, manifest rendering, whitespace checks, and secret scanning.
 - Safety doctor: local readiness checks for config, vault layout, packet
   privacy, and placeholder-only examples.
 - Credential leases: runtime-only scoped lease scaffold before any cloud

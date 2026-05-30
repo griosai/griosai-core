@@ -21,6 +21,8 @@ explicitly opts into LAN, VPN, or Tailscale access.
   required for the local CLI, tests, or vault workflow.
 - Keep generated HTML self-contained and avoid remote assets by default.
 - Add tests for path safety, escaping, and any new filesystem writes.
+- Run `./scripts/validate.sh` before committing unless the change is docs-only
+  and the user explicitly accepts skipping validation.
 - Keep Kubernetes services private by default. Public ingress, LoadBalancer, or
   NodePort exposure requires an explicit review and user decision.
 - Log only privacy-preserving metadata to MLflow unless the user explicitly
@@ -38,3 +40,4 @@ explicitly opts into LAN, VPN, or Tailscale access.
 - `src/griosai/ollama_client.py`: optional local vision model calls.
 - `src/griosai/server.py`: local REST/dashboard server.
 - `src/griosai/cli.py`: operator entrypoints.
+- `scripts/validate.sh`: canonical local and CI validation gate.
