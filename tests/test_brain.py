@@ -9,7 +9,15 @@ class BrainTests(unittest.TestCase):
     def test_ensure_vault_creates_expected_dirs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault = ensure_vault(Path(tmp) / "vault")
-            for name in ("notes", "dashboards", "images", "inbox", "lineage", "notebook-packets"):
+            for name in (
+                "notes",
+                "dashboards",
+                "images",
+                "inbox",
+                "lineage",
+                "notebook-packets",
+                "agent-runs",
+            ):
                 self.assertTrue((vault / name).is_dir())
 
     def test_safe_child_rejects_path_escape(self) -> None:

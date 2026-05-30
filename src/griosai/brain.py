@@ -9,7 +9,15 @@ from pathlib import Path
 from typing import Any
 
 
-VAULT_DIRS = ("notes", "dashboards", "images", "inbox", "lineage", "notebook-packets")
+VAULT_DIRS = (
+    "notes",
+    "dashboards",
+    "images",
+    "inbox",
+    "lineage",
+    "notebook-packets",
+    "agent-runs",
+)
 
 
 @dataclass(frozen=True)

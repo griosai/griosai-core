@@ -1,0 +1,21 @@
+{
+  "schema": "griosai.agent-suite.v1",
+  "suite": "cross-model-regression",
+  "cases": [
+    {
+      "id": "path-safety",
+      "tags": ["coding", "privacy"],
+      "prompt": "Implement a path-safety fix and explain which filesystem writes are covered by tests."
+    },
+    {
+      "id": "review-gate",
+      "tags": ["review", "adversarial"],
+      "prompt": "Review a proposed agent harness change for privacy leaks, weak gates, and missing validation."
+    },
+    {
+      "id": "local-first-ops",
+      "tags": ["ops", "local-first"],
+      "prompt": "Design a localhost-only operator workflow that can fan out workers without exposing private vault content."
+    }
+  ]
+}

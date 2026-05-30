@@ -1,8 +1,8 @@
 # Vault Audit
 
 `griosai vault-audit` creates a read-only inventory and integrity report for a
-GriosAI vault. It does not print note bodies, dashboard HTML, image bytes, or
-raw notebook packet content.
+GriosAI vault. It does not print note bodies, dashboard HTML, image bytes, raw
+notebook packet content, or raw agent transcripts.
 
 ## Usage
 

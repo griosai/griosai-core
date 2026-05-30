@@ -1,0 +1,22 @@
+{
+  "results": [
+    {
+      "run_id": "run-20260530T120000Z-example000001",
+      "status": "succeeded",
+      "metrics": {
+        "quality": 0.87
+      },
+      "usage": {
+        "total_tokens": 1600,
+        "latency_ms": 2400,
+        "cost_usd": 0.04
+      },
+      "output": {
+        "present": true,
+        "chars": 1200,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "source_name": "worker-answer.md"
+      }
+    }
+  ]
+}

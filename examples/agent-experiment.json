@@ -1,0 +1,102 @@
+{
+  "schema": "griosai.agent-experiment.v1",
+  "experiment": "cross-model-agent",
+  "description": "Compare provider-neutral agent variants without storing raw transcripts in logs.",
+  "primary_metric": {
+    "name": "quality",
+    "direction": "maximize"
+  },
+  "rubric": {
+    "aggregate_metric": "quality",
+    "criteria": [
+      {
+        "name": "correctness",
+        "weight": 0.5,
+        "min": 0,
+        "max": 1,
+        "direction": "maximize"
+      },
+      {
+        "name": "safety",
+        "weight": 0.3,
+        "min": 0,
+        "max": 1,
+        "direction": "maximize"
+      },
+      {
+        "name": "efficiency",
+        "weight": 0.2,
+        "min": 0,
+        "max": 1,
+        "direction": "maximize"
+      }
+    ]
+  },
+  "traffic_salt": "cross-model-agent-v1",
+  "min_trials_per_variant": 3,
+  "guardrails": [
+    "metadata only logs",
+    "local vault artifacts",
+    "operator approved remote calls only"
+  ],
+  "parallel": {
+    "merge_strategy": "scoreboard",
+    "replicas": 1,
+    "lanes": [
+      {
+        "id": "scout",
+        "role": "scout",
+        "objective": "map viable approaches and risks"
+      },
+      {
+        "id": "builder",
+        "role": "implementer",
+        "objective": "produce a focused candidate solution"
+      },
+      {
+        "id": "reviewer",
+        "role": "reviewer",
+        "objective": "find correctness, safety, and test gaps"
+      },
+      {
+        "id": "adversary",
+        "role": "adversary",
+        "objective": "stress test assumptions before merge"
+      }
+    ]
+  },
+  "variants": [
+    {
+      "id": "claude-primary",
+      "provider": "anthropic",
+      "model": "claude-sonnet",
+      "adapter": "claude-code",
+      "weight": 1,
+      "settings": {
+        "temperature": 0.2,
+        "max_tokens": 4096
+      }
+    },
+    {
+      "id": "openai-backup",
+      "provider": "openai",
+      "model": "gpt-model",
+      "adapter": "responses",
+      "weight": 1,
+      "settings": {
+        "temperature": 0.2,
+        "max_tokens": 4096
+      }
+    },
+    {
+      "id": "ollama-local",
+      "provider": "ollama",
+      "model": "qwen2.5:14b",
+      "adapter": "ollama",
+      "weight": 1,
+      "settings": {
+        "temperature": 0.1
+      }
+    }
+  ]
+}

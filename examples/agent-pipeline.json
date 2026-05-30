@@ -1,0 +1,55 @@
+{
+  "schema": "griosai.agent-pipeline-spec.v1",
+  "pipeline": "ship-review-loop",
+  "stages": [
+    {
+      "id": "scout",
+      "name": "Scout",
+      "lanes": [
+        {
+          "id": "scout",
+          "role": "scout",
+          "objective": "map viable approaches and risks"
+        }
+      ],
+      "mode": "weighted",
+      "replicas": 1,
+      "min_success_ratio": 1
+    },
+    {
+      "id": "build",
+      "name": "Build",
+      "depends_on": ["scout"],
+      "lanes": [
+        {
+          "id": "builder",
+          "role": "implementer",
+          "objective": "produce a focused candidate solution"
+        }
+      ],
+      "mode": "matrix",
+      "replicas": 1,
+      "min_success_ratio": 1
+    },
+    {
+      "id": "review",
+      "name": "Review",
+      "depends_on": ["build"],
+      "lanes": [
+        {
+          "id": "reviewer",
+          "role": "reviewer",
+          "objective": "find correctness, safety, and test gaps"
+        },
+        {
+          "id": "adversary",
+          "role": "adversary",
+          "objective": "stress test assumptions before merge"
+        }
+      ],
+      "mode": "weighted",
+      "replicas": 1,
+      "min_success_ratio": 1
+    }
+  ]
+}

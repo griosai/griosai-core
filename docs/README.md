@@ -26,6 +26,7 @@ specifications.
 - [CLI expected errors](ops/cli-errors.md)
 - [Safety doctor](ops/safety-doctor.md)
 - [Private phone access](ops/private-phone-access.md)
+- [Agent harness](ops/agent-harness.md)
 - [Backup and restore](ops/backup-restore.md)
 - [Vault audit](ops/vault-audit.md)
 - [Lineage manifests](ops/lineage.md)

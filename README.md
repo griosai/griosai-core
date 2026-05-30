@@ -33,6 +33,7 @@ reviewed before use.
 - [Backup and restore](docs/ops/backup-restore.md)
 - [Vault audit](docs/ops/vault-audit.md)
 - [Lineage manifests](docs/ops/lineage.md)
+- [Agent harness](docs/ops/agent-harness.md)
 - [Private phone access](docs/ops/private-phone-access.md)
 - [Validation gate](docs/ops/validation.md)
 - [Release checklist](docs/ops/release-checklist.md)
@@ -85,6 +86,219 @@ Print the accepted payload contract:
 ```bash
 griosai analysis-schema
 ```
+
+## Cross-Model Agent Harness
+
+Use the agent harness to A/B test Claude, OpenAI, Ollama, or custom runner
+variants without making any provider required by the core CLI:
+
+```bash
+griosai agent-run \
+  --vault ~/GriosAI-vault \
+  --config-file ./examples/agent-experiment.json \
+  --subject local-thread-001 \
+  --prompt-file ./private-prompt.md \
+  --json
+```
+
+Call the selected adapter outside the core harness, then log metrics without
+raw transcripts:
+
+```bash
+griosai agent-score \
+  --vault ~/GriosAI-vault \
+  --run-id <run-id> \
+  --scores-json '{"correctness": 0.9, "safety": 1, "efficiency": 0.7}' \
+  --usage-json '{"prompt_tokens": 1200, "completion_tokens": 400, "latency_ms": 2100, "cost_usd": 0.03}'
+
+griosai agent-outcome \
+  --vault ~/GriosAI-vault \
+  --run-id <run-id> \
+  --status succeeded \
+  --metrics-json '{"quality": 0.86}' \
+  --usage-json '{"total_tokens": 1600, "latency_ms": 2100, "cost_usd": 0.03}'
+
+griosai agent-ingest --vault ~/GriosAI-vault --results-file ./worker-results.json
+
+griosai agent-compare --vault ~/GriosAI-vault --experiment cross-model-agent
+griosai agent-balance --vault ~/GriosAI-vault --experiment cross-model-agent --suite-id <suite-id> --dimensions variant,lane,case
+griosai agent-decision --vault ~/GriosAI-vault --experiment cross-model-agent --baseline-variant claude-primary
+griosai agent-drift --vault ~/GriosAI-vault --experiment cross-model-agent --baseline-window 5 --recent-window 5
+griosai agent-power --vault ~/GriosAI-vault --experiment cross-model-agent --min-detectable-effect 0.05
+griosai agent-pipeline --vault ~/GriosAI-vault --config-file ./examples/agent-experiment.json --pipeline-file ./examples/agent-pipeline.json --subject-prefix ship-loop-001
+griosai agent-pipeline-advance --vault ~/GriosAI-vault --pipeline-id <pipeline-id>
+griosai agent-arena --vault ~/GriosAI-vault --config-file ./examples/agent-experiment.json --subject model-arena-001
+griosai agent-arena-report --vault ~/GriosAI-vault --arena-id <arena-id>
+griosai agent-judge-panel --vault ~/GriosAI-vault --config-file ./examples/agent-experiment.json --plan-id <plan-id>
+griosai agent-judge-report --vault ~/GriosAI-vault --panel-id <panel-id>
+griosai agent-schedule --vault ~/GriosAI-vault --experiment cross-model-agent --subject next-batch-001 --max-runs 24
+griosai agent-schedule-report --vault ~/GriosAI-vault --schedule-id <schedule-id>
+griosai agent-leaderboard --vault ~/GriosAI-vault --experiment cross-model-agent
+griosai agent-config --vault ~/GriosAI-vault --experiment cross-model-agent --source auto
+griosai agent-improve --vault ~/GriosAI-vault --experiment cross-model-agent
+griosai agent-memory --vault ~/GriosAI-vault --experiment cross-model-agent
+griosai agent-curriculum --vault ~/GriosAI-vault --experiment cross-model-agent --metric-threshold 0.8
+griosai agent-curriculum-plan --vault ~/GriosAI-vault --config-file ./examples/agent-experiment.json --suite-file ./private-hard-cases.json --subject-prefix hardcase-rerun-001
+griosai agent-allocate --vault ~/GriosAI-vault --experiment cross-model-agent --strategy ucb1
+griosai agent-route --vault ~/GriosAI-vault --experiment cross-model-agent --strategy ucb1
+griosai agent-evolve --vault ~/GriosAI-vault --experiment cross-model-agent --require-budget --require-drift
+griosai agent-readiness --vault ~/GriosAI-vault --experiment cross-model-agent --require-comparison --require-balance --require-drift
+griosai agent-rollout --vault ~/GriosAI-vault --experiment cross-model-agent --require-readiness --require-drift
+griosai agent-rollout-check --vault ~/GriosAI-vault --rollout-id <rollout-id> --stage-index 1 --require-drift
+```
+
+For parallel lanes, create a fanout plan and merge the resulting outcomes:
+
+```bash
+griosai agent-plan \
+  --vault ~/GriosAI-vault \
+  --config-file ./examples/agent-experiment.json \
+  --subject local-thread-001 \
+  --lanes scout,builder,reviewer,adversary \
+  --json
+
+griosai agent-matrix \
+  --vault ~/GriosAI-vault \
+  --config-file ./examples/agent-experiment.json \
+  --subject benchmark-thread-001 \
+  --lanes scout,builder,reviewer \
+  --json
+griosai agent-arena \
+  --vault ~/GriosAI-vault \
+  --config-file ./examples/agent-experiment.json \
+  --subject model-arena-001 \
+  --lanes reviewer \
+  --json
+
+griosai agent-suite \
+  --vault ~/GriosAI-vault \
+  --config-file ./examples/agent-experiment.json \
+  --suite-file ./examples/agent-suite.json \
+  --subject-prefix regression-loop-001 \
+  --lanes scout,reviewer \
+  --json
+
+griosai agent-suite-report --vault ~/GriosAI-vault --suite-id <suite-id>
+griosai agent-pipeline --vault ~/GriosAI-vault --config-file ./examples/agent-experiment.json --pipeline-file ./examples/agent-pipeline.json --subject-prefix ship-loop-001
+griosai agent-pipeline-advance --vault ~/GriosAI-vault --pipeline-id <pipeline-id>
+griosai agent-arena-report --vault ~/GriosAI-vault --arena-id <arena-id>
+griosai agent-judge-panel --vault ~/GriosAI-vault --config-file ./examples/agent-experiment.json --plan-id <plan-id>
+griosai agent-judge-report --vault ~/GriosAI-vault --panel-id <panel-id>
+griosai agent-preflight --vault ~/GriosAI-vault --suite-id <suite-id> --require-cross-model --require-lane-coverage --require-variant-coverage
+griosai agent-hold --vault ~/GriosAI-vault --experiment cross-model-agent --scopes dispatch --reason "pause worker wave"
+griosai agent-hold --vault ~/GriosAI-vault --experiment cross-model-agent --scopes all --reason "pause dispatch and model gates"
+griosai agent-release --vault ~/GriosAI-vault --experiment cross-model-agent --hold-id <hold-id> --reason "resume worker wave"
+griosai agent-quarantine --vault ~/GriosAI-vault --experiment cross-model-agent --providers openai --reason "provider incident"
+griosai agent-circuit --vault ~/GriosAI-vault --experiment cross-model-agent --group-by provider --max-failure-rate 0.25 --quarantine-on-trip
+griosai agent-unquarantine --vault ~/GriosAI-vault --experiment cross-model-agent --quarantine-id <quarantine-id> --reason "provider recovered"
+griosai agent-claim --vault ~/GriosAI-vault --plan-id <plan-id> --client-id worker-1 --claim-strategy lane-balanced
+griosai agent-dispatch --vault ~/GriosAI-vault --plan-id <plan-id> --client-prefix worker --count 8 --claim-strategy lane-variant-balanced
+griosai agent-orchestrate --vault ~/GriosAI-vault --suite-id <suite-id> --client-prefix worker --max-concurrency 12 --batch-size 4 --claim-strategy lane-variant-balanced
+griosai agent-cycle --vault ~/GriosAI-vault --suite-id <suite-id> --client-prefix worker --max-concurrency 12 --claim-strategy lane-variant-balanced
+griosai agent-loop --vault ~/GriosAI-vault --suite-id <suite-id> --client-prefix worker --max-cycles 3 --claim-strategy lane-variant-balanced
+griosai agent-capacity --vault ~/GriosAI-vault --suite-id <suite-id> --max-concurrency 12
+griosai agent-slo --vault ~/GriosAI-vault --suite-id <suite-id> --min-completion-rate 0.95 --max-failure-rate 0.05
+griosai agent-mix --vault ~/GriosAI-vault --experiment cross-model-agent --require-local-provider
+griosai agent-work --vault ~/GriosAI-vault --claim-id <claim-id>
+griosai agent-heartbeat --vault ~/GriosAI-vault --claim-id <claim-id> --client-id worker-1
+griosai agent-retry --vault ~/GriosAI-vault --run-id <run-id> --reason adapter_timeout
+griosai agent-recover --vault ~/GriosAI-vault --experiment cross-model-agent --max-retries 8
+griosai agent-merge --vault ~/GriosAI-vault --plan-id <plan-id>
+griosai agent-gate --vault ~/GriosAI-vault --plan-id <plan-id> --metric-threshold 0.85
+griosai agent-quorum --vault ~/GriosAI-vault --plan-id <plan-id> --min-agreement-ratio 0.75
+griosai agent-adjudicate --vault ~/GriosAI-vault --plan-id <plan-id>
+griosai agent-audit --vault ~/GriosAI-vault
+griosai agent-manifest --vault ~/GriosAI-vault --experiment cross-model-agent
+griosai agent-verify-manifest --vault ~/GriosAI-vault --manifest-id <manifest-id>
+griosai agent-snapshot --vault ~/GriosAI-vault --experiment cross-model-agent --fail-on-change
+griosai agent-compare --vault ~/GriosAI-vault --experiment cross-model-agent
+griosai agent-drift --vault ~/GriosAI-vault --experiment cross-model-agent --max-metric-drop 0.05
+griosai agent-decision \
+  --vault ~/GriosAI-vault \
+  --experiment cross-model-agent \
+  --baseline-variant claude-primary \
+  --candidate-variant openai-backup \
+  --min-samples-per-variant 3 \
+  --min-delta 0.05 \
+  --confidence-threshold 0.8
+griosai agent-power \
+  --vault ~/GriosAI-vault \
+  --experiment cross-model-agent \
+  --baseline-variant claude-primary \
+  --min-detectable-effect 0.05 \
+  --max-cost-usd 10 \
+  --max-total-tokens 100000
+griosai agent-schedule \
+  --vault ~/GriosAI-vault \
+  --experiment cross-model-agent \
+  --subject benchmark-next-batch-001 \
+  --lanes scout,reviewer \
+  --max-runs 24
+griosai agent-schedule-report \
+  --vault ~/GriosAI-vault \
+  --schedule-id schedule-20260530T120000Z-example
+griosai agent-leaderboard --vault ~/GriosAI-vault --experiment cross-model-agent
+griosai agent-config --vault ~/GriosAI-vault --experiment cross-model-agent --source auto
+griosai agent-timeline --vault ~/GriosAI-vault
+griosai agent-watchdog --vault ~/GriosAI-vault
+griosai agent-budget \
+  --vault ~/GriosAI-vault \
+  --experiment cross-model-agent \
+  --max-cost-usd 10 \
+  --max-total-tokens 100000 \
+  --max-mean-latency-ms 2000
+griosai agent-dashboard --vault ~/GriosAI-vault --experiment cross-model-agent
+griosai agent-promote \
+  --vault ~/GriosAI-vault \
+  --experiment cross-model-agent \
+  --require-suite-report \
+  --require-pareto \
+  --require-budget \
+  --require-balance \
+  --require-drift
+griosai agent-readiness \
+  --vault ~/GriosAI-vault \
+  --experiment cross-model-agent \
+  --require-comparison \
+  --require-budget \
+  --require-route \
+  --require-memory \
+  --require-quorum \
+  --require-promotion \
+  --require-balance \
+  --require-drift
+griosai agent-rollout \
+  --vault ~/GriosAI-vault \
+  --experiment cross-model-agent \
+  --stages 0.05,0.25,0.5,1 \
+  --require-readiness \
+  --require-promotion \
+  --require-budget \
+  --require-drift
+griosai agent-rollout-check \
+  --vault ~/GriosAI-vault \
+  --rollout-id <rollout-id> \
+  --stage-index 1 \
+  --min-stage-outcomes 5 \
+  --require-budget \
+  --require-readiness \
+  --require-drift
+griosai agent-evolve \
+  --vault ~/GriosAI-vault \
+  --experiment cross-model-agent \
+  --require-budget \
+  --require-route \
+  --require-drift \
+  --plan-rollout
+griosai agent-status --vault ~/GriosAI-vault
+```
+
+Run, plan, matrix-plan, pipeline, pipeline-advance, arena, arena-report, judge-panel, judge-report, suite, suite-report, preflight, hold, release, quarantine, circuit, unquarantine, claim, heartbeat, retry,
+dispatch, orchestration cycle, bounded loop, capacity plan, SLO gate, model-mix gate, work-packet, scorecard, outcome,
+compare, balance, decision, drift, power, schedule, leaderboard, config proposal, memory, curriculum, curriculum-plan, lane route, merge, gate, quorum, adjudication, ingest, audit, manifest, manifest verification, snapshot, timeline,
+watchdog, budget, readiness, rollout, rollout check, dashboard, promotion, evolve, status, and improvement-loop artifacts live under
+`agent-runs/`, with HTML dashboards under `dashboards/`. See
+[docs/ops/agent-harness.md](docs/ops/agent-harness.md).
 
 ## Notebook Packets
 
@@ -338,6 +552,11 @@ See [docs/api/rest-api.md](docs/api/rest-api.md).
 - Notebook packets redact local paths and likely secrets before writing.
 - Lineage manifests preserve artifact hashes and MLflow correlation IDs without
   exporting raw analysis content.
+- Agent harness logs hash prompts and outputs, compares model variants by
+  metadata, tracks usage and cost, reports Pareto-efficient variants, writes
+  sequential A/B stop/continue decisions, mines metadata-only hard-case
+  curricula, writes rubric scorecards, and produces reviewable improvement and
+  promotion proposals into the vault.
 - Vault backups verify file hashes, skip symlinks, and restore without
   clobbering by default.
 - `griosai vault-audit` inventories file hashes and risky vault metadata without
