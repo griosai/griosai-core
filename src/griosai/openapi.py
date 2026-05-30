@@ -255,11 +255,12 @@ _OPENAPI_SPEC: dict[str, Any] = {
             "AnalyzeImageResponse": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["ok", "note", "dashboard", "dashboard_url"],
+                "required": ["ok", "note", "dashboard", "lineage", "dashboard_url"],
                 "properties": {
                     "ok": {"type": "boolean"},
                     "note": {"type": "string"},
                     "dashboard": {"type": "string"},
+                    "lineage": {"type": "string"},
                     "dashboard_url": {"type": "string"},
                 },
             },

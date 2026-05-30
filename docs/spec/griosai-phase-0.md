@@ -19,6 +19,8 @@ dashboard without sending private data to a server.
   non-clobbering restore by default.
 - Vault audit: read-only inventory with relative paths, sizes, SHA-256 hashes,
   layout findings, and secret-looking text warnings.
+- Lineage: privacy-preserving analysis manifests that bind generated notes and
+  dashboards to stable analysis IDs and artifact hashes.
 - Obsidian sync: optional Local REST API adapter, localhost-only and
   token-authenticated.
 - MLflow tracking: optional REST adapter that logs privacy-preserving metadata

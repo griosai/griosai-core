@@ -27,6 +27,7 @@ griosai sample --vault "$TMPDIR/vault"
 griosai add-analysis --vault "$TMPDIR/vault" --json-file ./examples/sample-analysis.json
 griosai notebook-packet --vault "$TMPDIR/vault" --json-file ./examples/sample-analysis.json
 griosai vault-audit --vault "$TMPDIR/vault" --json >/dev/null
+griosai lineage-verify --vault "$TMPDIR/vault" --json >/dev/null
 griosai openapi >/dev/null
 BACKUP_JSON="$(griosai backup --vault "$TMPDIR/vault" --output "$TMPDIR")"
 ARCHIVE="$(printf '%s' "$BACKUP_JSON" | python3 -c 'import json, sys; print(json.load(sys.stdin)["archive_path"])')"
@@ -47,6 +48,8 @@ Optional smoke tests:
   are staged.
 - No vault backup archives are staged.
 - Vault audit has no fail-level findings before backup/export.
+- Lineage verification has no fail-level findings before MLflow logging or
+  external handoff.
 - Notebook packets contain sanitized source files only.
 - MLflow runs contain metadata only unless a separate raw-artifact decision is
   approved.

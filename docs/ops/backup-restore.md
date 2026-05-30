@@ -22,6 +22,7 @@ The archive includes files under the standard vault directories:
 - `dashboards/`
 - `images/`
 - `inbox/`
+- `lineage/`
 - `notebook-packets/`
 
 Symlinks are skipped so a backup cannot silently capture files outside the
@@ -65,6 +66,6 @@ During restore, GriosAI verifies:
 `griosai verify-backup` performs the archive and digest checks without writing
 to a vault.
 
-Backups can contain private notes, images, and dashboards. Keep backup archives
-out of git, cloud sync folders, and public issue attachments unless they are
-explicitly reviewed and sanitized.
+Backups can contain private notes, images, dashboards, and lineage metadata.
+Keep backup archives out of git, cloud sync folders, and public issue
+attachments unless they are explicitly reviewed and sanitized.

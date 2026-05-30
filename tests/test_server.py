@@ -10,6 +10,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
+from griosai.brain import AnalysisRecord, ensure_vault
 from griosai.config import GriosConfig
 from griosai.server import make_handler, run_server
 
@@ -87,6 +88,35 @@ class ServerTests(unittest.TestCase):
             self.assertIn("/api/analyze-image", payload["paths"])
             self.assertIn("bearerAuth", payload["components"]["securitySchemes"])
 
+    def test_post_analyze_image_success_returns_lineage_path(self) -> None:
+        with running_server() as server:
+            vault = Path(server.griosai_vault_dir)
+            image = vault / "images" / "sample.png"
+            image.write_bytes(b"png")
+            body = json.dumps({"image_path": str(image)}).encode("utf-8")
+
+            with patch(
+                "griosai.server.analyze_image",
+                return_value=AnalysisRecord(title="Server Lineage", summary="local"),
+            ):
+                response = request(
+                    server,
+                    "POST",
+                    "/api/analyze-image",
+                    body=body,
+                    headers={
+                        "Authorization": "Bearer test-token",
+                        "Content-Type": "application/json",
+                    },
+                )
+            payload = json.loads(response.read().decode("utf-8"))
+
+            self.assertEqual(response.status, 201)
+            self.assertTrue(Path(payload["note"]).exists())
+            self.assertTrue(Path(payload["dashboard"]).exists())
+            self.assertTrue(Path(payload["lineage"]).exists())
+            self.assertEqual(Path(payload["lineage"]).parent, vault / "lineage")
+
     def test_html_responses_include_security_headers(self) -> None:
         with running_server() as server:
             response = request(server, "GET", "/")
@@ -115,7 +145,9 @@ class running_server:
             vault_dir=Path(self.tmp.name) / "vault",
             api_token="test-token",
         )
+        self.vault_dir = ensure_vault(config.vault_dir)
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(config))
+        self.server.griosai_vault_dir = str(self.vault_dir)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         return self.server

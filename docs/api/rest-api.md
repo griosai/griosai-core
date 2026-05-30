@@ -16,7 +16,7 @@ curl http://127.0.0.1:8765/api/openapi.json
 - `GET /api/openapi.json`: OpenAPI contract.
 - `GET /dashboards/<file.html>`: generated dashboard HTML.
 - `POST /api/analyze-image`: analyze a vault image through the configured
-  local Ollama adapter.
+  local Ollama adapter and return generated note, dashboard, and lineage paths.
 
 Mutation endpoints require `Authorization: Bearer <token>` and
 `Content-Type: application/json`. `POST /api/analyze-image` also requires

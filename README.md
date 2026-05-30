@@ -104,6 +104,20 @@ symlinks, oversized files, and secret-looking text warnings.
 
 See [docs/ops/vault-audit.md](docs/ops/vault-audit.md).
 
+## Analysis Lineage
+
+Generated notes and dashboards also get a privacy-preserving lineage manifest:
+
+```bash
+griosai lineage-verify --vault ~/GriosAI-vault --json
+```
+
+Lineage manifests bind local artifacts to a stable `analysis_id`, byte sizes,
+and SHA-256 hashes without storing raw summaries, observations, actions, source
+paths, or raw JSON in tracking metadata.
+
+See [docs/ops/lineage.md](docs/ops/lineage.md).
+
 ## Optional Obsidian Sync
 
 If the Obsidian Local REST API plugin is running, write the same markdown note
@@ -124,8 +138,8 @@ See [docs/integrations/obsidian-local-rest.md](docs/integrations/obsidian-local-
 ## Optional MLflow Tracking
 
 MLflow support is metadata-only by default: it logs counts, model labels, slug,
-timestamps, and safe image basenames, not raw summaries, observations, actions,
-or raw JSON.
+stable `analysis_id`, timestamps, and safe image basenames, not raw summaries,
+observations, actions, or raw JSON.
 
 Run a local MLflow Tracking server, then log an analysis:
 
@@ -231,7 +245,8 @@ griosai credential-lease \
 - `GET /api/openapi.json`: machine-readable REST contract.
 - `GET /dashboards/<file.html>`: dashboard HTML from the vault.
 - `POST /api/analyze-image`: JSON body with `image_path`, optional `prompt`,
-  and optional `model`; runs the local Ollama adapter.
+  and optional `model`; runs the local Ollama adapter and returns note,
+  dashboard, and lineage paths.
 
 Print the same contract from the CLI:
 
@@ -247,6 +262,8 @@ See [docs/api/rest-api.md](docs/api/rest-api.md).
 - No cloud provider is configured by default.
 - HTML dashboards use escaped content and no remote assets.
 - Notebook packets redact local paths and likely secrets before writing.
+- Lineage manifests preserve artifact hashes and MLflow correlation IDs without
+  exporting raw analysis content.
 - Vault backups verify file hashes, skip symlinks, and restore without
   clobbering by default.
 - `griosai vault-audit` inventories file hashes and risky vault metadata without

@@ -15,8 +15,8 @@ hard requirement for local development.
   DNS plus same-namespace MLflow/Ollama ports when the cluster CNI enforces
   NetworkPolicy.
 - MLflow tracking uses the REST API through `src/griosai/mlflow_client.py`.
-- MLflow payloads are metadata-only: counts, slug, model label, timestamps, and
-  safe source image basename.
+- MLflow payloads are metadata-only: stable `analysis_id`, counts, slug, model
+  label, timestamps, and safe source image basename.
 
 ## Build Images
 
@@ -101,6 +101,10 @@ To log a sample from your workstation through the port-forward:
 GRIOSAI_MLFLOW_TRACKING_URI=http://127.0.0.1:5000 \
   griosai mlflow-log --json-file ./examples/sample-analysis.json
 ```
+
+The returned `analysis_id` matches the local lineage manifest for the same
+analysis content, so the MLflow run can be correlated with vault artifacts
+without uploading raw note or dashboard content.
 
 ## Production Notes
 

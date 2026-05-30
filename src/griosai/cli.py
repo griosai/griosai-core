@@ -10,6 +10,13 @@ from .broker import CredentialBroker
 from .config import GriosConfig
 from .dashboard import write_dashboard
 from .doctor import doctor_exit_code, format_doctor_json, format_doctor_text, run_doctor
+from .lineage import (
+    format_lineage_json,
+    format_lineage_text,
+    lineage_exit_code,
+    verify_lineage,
+    write_lineage_manifest,
+)
 from .mlflow_client import MlflowConfig, log_analysis_to_mlflow
 from .notebook import NotebookConnectorAdapter
 from .obsidian import ObsidianConfig, publish_analysis_to_obsidian
@@ -28,9 +35,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Initialized GriosAI vault at {vault}")
         return 0
     if args.command == "sample":
-        note, dashboard = create_sample(Path(args.vault))
+        note, dashboard, lineage = create_sample(Path(args.vault))
         print(f"Wrote note: {note}")
         print(f"Wrote dashboard: {dashboard}")
+        print(f"Wrote lineage: {lineage}")
         return 0
     if args.command == "analyze-image":
         config = GriosConfig.from_env(
@@ -47,8 +55,15 @@ def main(argv: list[str] | None = None) -> int:
         slug = slugify(args.slug or record.title)
         note = write_analysis_note(config.vault_dir, record, slug=slug)
         dashboard = write_dashboard(config.vault_dir, record, slug=slug)
+        lineage = write_lineage_manifest(
+            config.vault_dir,
+            record,
+            artifacts={"dashboard": dashboard, "note": note},
+            slug=slug,
+        )
         print(f"Wrote note: {note}")
         print(f"Wrote dashboard: {dashboard}")
+        print(f"Wrote lineage: {lineage}")
         return 0
     if args.command == "add-analysis":
         payload = _load_json_payload(args.json_file)
@@ -56,8 +71,15 @@ def main(argv: list[str] | None = None) -> int:
         slug = slugify(args.slug or record.title)
         note = write_analysis_note(Path(args.vault), record, slug=slug)
         dashboard = write_dashboard(Path(args.vault), record, slug=slug)
+        lineage = write_lineage_manifest(
+            Path(args.vault),
+            record,
+            artifacts={"dashboard": dashboard, "note": note},
+            slug=slug,
+        )
         print(f"Wrote note: {note}")
         print(f"Wrote dashboard: {dashboard}")
+        print(f"Wrote lineage: {lineage}")
         return 0
     if args.command == "notebook-packet":
         payload = _load_json_payload(args.json_file)
@@ -145,6 +167,10 @@ def main(argv: list[str] | None = None) -> int:
         audit = audit_vault(Path(args.vault))
         print(format_audit_json(audit) if args.json else format_audit_text(audit))
         return audit_exit_code(audit)
+    if args.command == "lineage-verify":
+        verification = verify_lineage(Path(args.vault))
+        print(format_lineage_json(verification) if args.json else format_lineage_text(verification))
+        return lineage_exit_code(verification)
     if args.command == "serve":
         config = GriosConfig.from_env(
             vault_dir=args.vault,
@@ -318,6 +344,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     vault_audit.add_argument("--vault", required=True, help="Vault directory")
     vault_audit.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+
+    lineage = subparsers.add_parser(
+        "lineage-verify",
+        help="Verify local analysis lineage manifests and artifact hashes",
+    )
+    lineage.add_argument("--vault", required=True, help="Vault directory")
+    lineage.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
 
     serve = subparsers.add_parser("serve", help="Run the local dashboard server")
     serve.add_argument("--vault", required=True, help="Vault directory")

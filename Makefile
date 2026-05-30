@@ -1,4 +1,4 @@
-.PHONY: validate test compile doctor-smoke kustomize
+.PHONY: validate test compile doctor-smoke lineage-smoke kustomize
 
 PYTHON ?= python3
 
@@ -15,6 +15,12 @@ doctor-smoke:
 	TMPDIR="$$(mktemp -d)"; \
 	PYTHONPATH=src $(PYTHON) -m griosai.cli init --vault "$$TMPDIR/vault" >/dev/null; \
 	PYTHONPATH=src $(PYTHON) -m griosai.cli doctor --vault "$$TMPDIR/vault" --repo . --json; \
+	rm -rf "$$TMPDIR"
+
+lineage-smoke:
+	TMPDIR="$$(mktemp -d)"; \
+	PYTHONPATH=src $(PYTHON) -m griosai.cli sample --vault "$$TMPDIR/vault" >/dev/null; \
+	PYTHONPATH=src $(PYTHON) -m griosai.cli lineage-verify --vault "$$TMPDIR/vault" --json; \
 	rm -rf "$$TMPDIR"
 
 kustomize:

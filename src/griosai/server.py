@@ -13,6 +13,7 @@ from urllib.parse import quote, unquote, urlparse
 from .brain import AnalysisRecord, ensure_vault, list_notes, safe_child, slugify, write_analysis_note
 from .config import GriosConfig
 from .dashboard import list_dashboards, write_dashboard
+from .lineage import write_lineage_manifest
 from .ollama_client import (
     DEFAULT_IMAGE_PROMPT,
     ImageTooLargeError,
@@ -122,11 +123,18 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
                 slug = slugify(record.title)
                 note_path = write_analysis_note(config.vault_dir, record, slug=slug)
                 dashboard_path = write_dashboard(config.vault_dir, record, slug=slug)
+                lineage_path = write_lineage_manifest(
+                    config.vault_dir,
+                    record,
+                    artifacts={"dashboard": dashboard_path, "note": note_path},
+                    slug=slug,
+                )
                 self._send_json(
                     {
                         "ok": True,
                         "note": str(note_path),
                         "dashboard": str(dashboard_path),
+                        "lineage": str(lineage_path),
                         "dashboard_url": f"/dashboards/{dashboard_path.name}",
                     },
                     status=HTTPStatus.CREATED,
@@ -258,7 +266,7 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
     return GriosHandler
 
 
-def create_sample(vault_dir: Path) -> tuple[Path, Path]:
+def create_sample(vault_dir: Path) -> tuple[Path, Path, Path]:
     record = AnalysisRecord(
         title="GriosAI Phase 0 Local Dashboard",
         summary="A local-only sample dashboard proving the vault, renderer, and server flow.",
@@ -277,7 +285,13 @@ def create_sample(vault_dir: Path) -> tuple[Path, Path]:
     slug = slugify(record.title)
     note_path = write_analysis_note(vault_dir, record, slug=slug)
     dashboard_path = write_dashboard(vault_dir, record, slug=slug)
-    return note_path, dashboard_path
+    lineage_path = write_lineage_manifest(
+        vault_dir,
+        record,
+        artifacts={"dashboard": dashboard_path, "note": note_path},
+        slug=slug,
+    )
+    return note_path, dashboard_path, lineage_path
 
 
 def _index_html(config: GriosConfig) -> str:

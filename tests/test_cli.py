@@ -20,12 +20,14 @@ class CliTests(unittest.TestCase):
                 '{"title": "Manual Insight", "summary": "No model required"}',
                 encoding="utf-8",
             )
-            self.assertEqual(
-                main(["add-analysis", "--vault", str(vault), "--json-file", str(payload)]),
-                0,
-            )
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(
+                    main(["add-analysis", "--vault", str(vault), "--json-file", str(payload)]),
+                    0,
+                )
             self.assertTrue((vault / "notes" / "manual-insight.md").exists())
             self.assertTrue((vault / "dashboards" / "manual-insight.html").exists())
+            self.assertTrue((vault / "lineage" / "manual-insight.json").exists())
 
     def test_credential_lease_cli_redacts_token(self) -> None:
         with patch.dict(os.environ, {"SERVICE_TOKEN": "super-" + "secret-token"}):

@@ -12,6 +12,7 @@ from pathlib import PurePath
 from typing import Any
 
 from .brain import AnalysisRecord, slugify
+from .lineage import analysis_id
 
 
 DEFAULT_MLFLOW_TRACKING_URI = "http://127.0.0.1:5000"
@@ -64,6 +65,7 @@ class MlflowLogResult:
     experiment_name: str
     experiment_id: str
     run_id: str
+    analysis_id: str
     status: str
     metrics_logged: int
     params_logged: int
@@ -75,6 +77,7 @@ class MlflowLogResult:
             "experiment_name": self.experiment_name,
             "experiment_id": self.experiment_id,
             "run_id": self.run_id,
+            "analysis_id": self.analysis_id,
             "status": self.status,
             "metrics_logged": self.metrics_logged,
             "params_logged": self.params_logged,
@@ -202,6 +205,7 @@ class MlflowClient:
             experiment_name=self.config.experiment_name,
             experiment_id=experiment_id,
             run_id=run_id,
+            analysis_id=payload["analysis_id"],
             status=status,
             metrics_logged=len(payload["metrics"]),
             params_logged=len(payload["params"]),
@@ -270,9 +274,11 @@ def analysis_mlflow_payload(
 ) -> dict[str, Any]:
     timestamp_ms = _now_ms()
     analysis_slug = slugify(slug or record.title)
+    record_analysis_id = analysis_id(record)
     source_image_name = _source_image_name(record.source_image)
 
     params = [
+        _param("griosai.analysis_id", record_analysis_id),
         _param("griosai.analysis_slug", analysis_slug),
         _param("griosai.model", record.model or "manual"),
     ]
@@ -295,6 +301,7 @@ def analysis_mlflow_payload(
         _tag("griosai.content_policy", "no-summary-observations-actions-or-raw-json"),
     ]
     return {
+        "analysis_id": record_analysis_id,
         "timestamp_ms": timestamp_ms,
         "run_name": f"griosai-{analysis_slug}",
         "params": params,

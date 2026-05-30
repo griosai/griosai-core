@@ -28,6 +28,7 @@ trap cleanup EXIT
 "$PYTHON_BIN" -m griosai.cli init --vault "$TMPDIR/vault" >/dev/null
 "$PYTHON_BIN" -m griosai.cli sample --vault "$TMPDIR/vault" >/dev/null
 "$PYTHON_BIN" -m griosai.cli vault-audit --vault "$TMPDIR/vault" --json >/dev/null
+"$PYTHON_BIN" -m griosai.cli lineage-verify --vault "$TMPDIR/vault" --json >/dev/null
 
 echo "==> backup restore smoke"
 BACKUP_JSON="$("$PYTHON_BIN" -m griosai.cli backup --vault "$TMPDIR/vault" --output "$TMPDIR")"

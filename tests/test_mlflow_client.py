@@ -45,6 +45,7 @@ class MlflowClientTests(unittest.TestCase):
         self.assertNotIn("/Users/gustavorios", encoded)
         self.assertNotIn(record.summary, encoded)
         self.assertIn("kitchen.png", encoded)
+        self.assertIn("griosai.analysis_id", encoded)
         self.assertIn("griosai.summary_chars", encoded)
 
     def test_log_analysis_uses_mlflow_rest_api(self) -> None:
@@ -64,6 +65,7 @@ class MlflowClientTests(unittest.TestCase):
             )
 
         self.assertEqual(result.status, "FINISHED")
+        self.assertEqual(len(result.analysis_id), 64)
         self.assertEqual(result.experiment_id, "42")
         self.assertEqual(result.run_id, "run-123")
         paths = [request["path"] for request in server.requests]
@@ -114,6 +116,7 @@ class MlflowClientTests(unittest.TestCase):
 
         parsed = json.loads(output.getvalue())
         self.assertEqual(parsed["run_id"], "run-123")
+        self.assertEqual(len(parsed["analysis_id"]), 64)
         self.assertEqual(parsed["experiment_id"], "42")
 
 
