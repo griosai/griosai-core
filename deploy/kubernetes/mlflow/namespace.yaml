@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: griosai
+  labels:
+    app.kubernetes.io/name: griosai
+    app.kubernetes.io/part-of: griosai

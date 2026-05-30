@@ -82,6 +82,25 @@ adapter still rejects non-localhost URLs.
 
 See [docs/integrations/obsidian-local-rest.md](docs/integrations/obsidian-local-rest.md).
 
+## Optional MLflow Tracking
+
+MLflow support is metadata-only by default: it logs counts, model labels, slug,
+timestamps, and safe image basenames, not raw summaries, observations, actions,
+or raw JSON.
+
+Run a local MLflow Tracking server, then log an analysis:
+
+```bash
+python -m pip install "mlflow>=3.1"
+mlflow server --host 127.0.0.1 --port 5000
+
+griosai mlflow-log --json-file ./examples/sample-analysis.json
+```
+
+The default tracking URI is `http://127.0.0.1:5000`. Non-local tracking URIs
+are rejected unless `GRIOSAI_MLFLOW_ALLOW_REMOTE=true` or
+`--allow-remote-tracking` is set.
+
 ## Phone Access
 
 The server intentionally binds to localhost by default. For phone viewing, keep
@@ -95,12 +114,36 @@ tailscale serve https / http://127.0.0.1:8765
 Use `tailscale serve`, not a public tunnel, when the goal is private access from
 your own devices.
 
-The server prints a per-run bearer token for mutation APIs. Pass
-`Authorization: Bearer <token>` when calling `POST /api/analyze-image`. If a
-private proxy changes the `Host` header, start the server with
+The server prints a generated per-run bearer token for mutation APIs when no
+token is configured. Pass `Authorization: Bearer <token>` when calling
+`POST /api/analyze-image`. If a private proxy changes the `Host` header, start
+the server with
 `--allow-host your-device.your-tailnet.ts.net`.
 
 See [docs/ops/private-phone-access.md](docs/ops/private-phone-access.md).
+
+## Kubernetes And Open Source Ops
+
+The repo includes a container image definition and Kustomize manifests for a
+private Kubernetes deployment:
+
+```bash
+docker build -f Containerfile -t ghcr.io/gustavorios/griosai:0.1.0 .
+kubectl apply -k deploy/kubernetes/base
+kubectl -n griosai rollout status deployment/griosai
+kubectl -n griosai port-forward svc/griosai 8765:8765
+```
+
+The service is `ClusterIP`, not public. The pod runs as non-root, uses a
+read-only root filesystem, mounts a PVC-backed vault, disables service-account
+token mounting, and probes `/api/health` with an allowed local Host header.
+
+An optional OSS MLflow tracking server manifest is available under
+`deploy/kubernetes/mlflow/`. It is intentionally cluster-private and suitable
+for a private lab; move production MLflow to a real database and object store
+before treating it as HA infrastructure.
+
+See [docs/ops/kubernetes-mlflow.md](docs/ops/kubernetes-mlflow.md).
 
 ## Safety Doctor And Credential Leases
 
@@ -141,6 +184,9 @@ griosai credential-lease \
 - HTML dashboards use escaped content and no remote assets.
 - Notebook packets redact local paths and likely secrets before writing.
 - Obsidian sync is optional, token-based, and restricted to localhost URLs.
+- MLflow tracking is optional, metadata-only, and localhost-only unless
+  explicitly allowed.
+- Kubernetes manifests default to private ClusterIP services and non-root pods.
 - HTTP responses include no-store, nosniff, referrer, and CSP safety headers.
 - Credential leases are runtime-only, scoped, short-lived, and redacted in logs.
 - `griosai doctor` checks local config, vault layout, packets, and placeholders.

@@ -1,13 +1,16 @@
+import io
 import http.client
 import socket
 import tempfile
 import threading
 import unittest
+from contextlib import redirect_stdout
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 from griosai.config import GriosConfig
-from griosai.server import make_handler
+from griosai.server import make_handler, run_server
 
 
 class ServerTests(unittest.TestCase):
@@ -80,6 +83,19 @@ class ServerTests(unittest.TestCase):
             self.assertIn("frame-ancestors 'none'", response.getheader("Content-Security-Policy"))
             self.assertEqual(response.getheader("Referrer-Policy"), "no-referrer")
 
+    def test_run_server_does_not_print_configured_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = GriosConfig.from_env(
+                vault_dir=Path(tmp) / "vault",
+                api_token="configured-token-value",
+            )
+            output = io.StringIO()
+            with patch("griosai.server.ThreadingHTTPServer", FakeServer), redirect_stdout(output):
+                run_server(config)
+
+        self.assertIn("Mutation API token: configured", output.getvalue())
+        self.assertNotIn("configured-token-value", output.getvalue())
+
 
 class running_server:
     def __enter__(self) -> ThreadingHTTPServer:
@@ -98,6 +114,17 @@ class running_server:
         self.thread.join(timeout=5)
         self.server.server_close()
         self.tmp.cleanup()
+
+
+class FakeServer:
+    def __init__(self, *args: object) -> None:
+        return
+
+    def serve_forever(self) -> None:
+        raise KeyboardInterrupt
+
+    def server_close(self) -> None:
+        return
 
 
 def request(

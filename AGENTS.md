@@ -17,8 +17,14 @@ explicitly opts into LAN, VPN, or Tailscale access.
   generated dashboards, and handoff artifacts.
 - Treat Ollama, Tailscale, Obsidian, and cloud APIs as optional adapters. The
   core should run without them.
+- Treat MLflow and Kubernetes as optional ops adapters. They must not become
+  required for the local CLI, tests, or vault workflow.
 - Keep generated HTML self-contained and avoid remote assets by default.
 - Add tests for path safety, escaping, and any new filesystem writes.
+- Keep Kubernetes services private by default. Public ingress, LoadBalancer, or
+  NodePort exposure requires an explicit review and user decision.
+- Log only privacy-preserving metadata to MLflow unless the user explicitly
+  approves artifact or raw-content tracking.
 
 ## Phase 0 Shape
 
@@ -26,6 +32,7 @@ explicitly opts into LAN, VPN, or Tailscale access.
 - `src/griosai/broker.py`: runtime-only scoped credential lease scaffold.
 - `src/griosai/dashboard.py`: static dashboard rendering.
 - `src/griosai/doctor.py`: local safety/readiness checks.
+- `src/griosai/mlflow_client.py`: optional metadata-only MLflow Tracking REST adapter.
 - `src/griosai/notebook.py`: sanitized NotebookLM/notebook packet adapter.
 - `src/griosai/obsidian.py`: optional localhost-only Obsidian Local REST adapter.
 - `src/griosai/ollama_client.py`: optional local vision model calls.

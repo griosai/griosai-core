@@ -31,7 +31,8 @@ griosai serve \
 
 ## Mutation APIs
 
-The server prints a per-run bearer token. Only mutation endpoints require it:
+When no token is configured, the server prints a generated per-run bearer token.
+Configured tokens are not echoed. Only mutation endpoints require the token:
 
 ```bash
 curl \

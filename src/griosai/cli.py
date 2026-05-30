@@ -10,6 +10,7 @@ from .broker import CredentialBroker
 from .config import GriosConfig
 from .dashboard import write_dashboard
 from .doctor import doctor_exit_code, format_doctor_json, format_doctor_text, run_doctor
+from .mlflow_client import MlflowConfig, log_analysis_to_mlflow
 from .notebook import NotebookConnectorAdapter
 from .obsidian import ObsidianConfig, publish_analysis_to_obsidian
 from .ollama_client import DEFAULT_IMAGE_PROMPT, analyze_image
@@ -82,6 +83,21 @@ def main(argv: list[str] | None = None) -> int:
         action = "Replaced" if result.replaced else "Wrote"
         print(f"{action} Obsidian note: {result.path}")
         return 0
+    if args.command == "mlflow-log":
+        payload = _load_json_payload(args.json_file)
+        record = AnalysisRecord.from_mapping(payload, model="manual")
+        result = log_analysis_to_mlflow(
+            MlflowConfig.from_env(
+                tracking_uri=args.tracking_uri,
+                experiment_name=args.experiment,
+                tracking_token=args.tracking_token,
+                allow_remote=True if args.allow_remote_tracking else None,
+            ),
+            record,
+            slug=args.slug,
+        )
+        print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        return 0
     if args.command == "credential-lease":
         lease = CredentialBroker().issue_env_lease(
             secret_name=args.secret_name,
@@ -107,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
             ollama_url=args.ollama_url,
             vision_model=args.model,
             api_token=args.api_token,
-            allowed_hosts=tuple(args.allow_host),
+            allowed_hosts=tuple(args.allow_host) if args.allow_host else None,
         )
         run_server(config)
         return 0
@@ -185,6 +201,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--insecure-skip-tls-verify",
         action="store_true",
         help="Allow a localhost self-signed Obsidian certificate",
+    )
+
+    mlflow = subparsers.add_parser(
+        "mlflow-log",
+        help="Log privacy-preserving analysis metadata to an MLflow Tracking server",
+    )
+    mlflow.add_argument(
+        "--json-file",
+        default="-",
+        help="Analysis JSON file to track, or '-' for stdin",
+    )
+    mlflow.add_argument("--slug", default=None, help="Run slug")
+    mlflow.add_argument("--tracking-uri", default=None, help="MLflow Tracking server URI")
+    mlflow.add_argument("--experiment", default=None, help="MLflow experiment name")
+    mlflow.add_argument(
+        "--tracking-token",
+        default=None,
+        help="Optional bearer token for an authenticated MLflow proxy",
+    )
+    mlflow.add_argument(
+        "--allow-remote-tracking",
+        action="store_true",
+        help="Allow non-localhost MLflow Tracking URIs",
     )
 
     lease = subparsers.add_parser(

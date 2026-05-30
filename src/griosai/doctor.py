@@ -9,6 +9,12 @@ from typing import Iterable
 
 from .brain import VAULT_DIRS
 from .config import DEFAULT_HOST, GriosConfig
+from .mlflow_client import (
+    DEFAULT_MLFLOW_TRACKING_URI,
+    bool_env,
+    is_loopback_tracking_uri,
+    validate_tracking_uri,
+)
 from .notebook import validate_notebook_packet
 from .obsidian import DEFAULT_OBSIDIAN_URL, _validate_loopback_url
 
@@ -94,6 +100,24 @@ def _config_checks(*, vault_dir: Path | None, environ: dict[str, str]) -> list[D
         checks.append(DoctorCheck("obsidian-url", "fail", str(exc)))
     else:
         checks.append(DoctorCheck("obsidian-url", "pass", "Obsidian URL is localhost-only"))
+
+    tracking_uri = environ.get("GRIOSAI_MLFLOW_TRACKING_URI", DEFAULT_MLFLOW_TRACKING_URI)
+    allow_remote_tracking = bool_env(environ.get("GRIOSAI_MLFLOW_ALLOW_REMOTE"), False)
+    try:
+        validate_tracking_uri(tracking_uri, allow_remote=allow_remote_tracking)
+    except ValueError as exc:
+        checks.append(DoctorCheck("mlflow-tracking-uri", "fail", str(exc)))
+    else:
+        if is_loopback_tracking_uri(tracking_uri):
+            checks.append(DoctorCheck("mlflow-tracking-uri", "pass", "MLflow tracking defaults to localhost"))
+        else:
+            checks.append(
+                DoctorCheck(
+                    "mlflow-tracking-uri",
+                    "warn",
+                    "MLflow tracking is non-local and explicitly allowed",
+                )
+            )
     return checks
 
 

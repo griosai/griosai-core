@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: griosai-config
+  namespace: griosai
+  labels:
+    app.kubernetes.io/name: griosai
+    app.kubernetes.io/part-of: griosai
+data:
+  GRIOSAI_VAULT_DIR: /data/vault
+  GRIOSAI_HOST: 0.0.0.0
+  GRIOSAI_PORT: "8765"
+  GRIOSAI_ALLOWED_HOSTS: localhost,griosai,griosai.griosai,griosai.griosai.svc,griosai.griosai.svc.cluster.local
+  GRIOSAI_OLLAMA_URL: http://ollama:11434
+  GRIOSAI_VISION_MODEL: qwen2.5vl:7b
+  GRIOSAI_MLFLOW_TRACKING_URI: http://mlflow-tracking:5000
+  GRIOSAI_MLFLOW_EXPERIMENT: GriosAI
+  GRIOSAI_MLFLOW_ALLOW_REMOTE: "true"

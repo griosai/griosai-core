@@ -47,11 +47,28 @@ class DoctorTests(unittest.TestCase):
                     "GRIOSAI_HOST": "0.0.0.0",
                     "GRIOSAI_API_TOKEN": "short",
                     "GRIOSAI_OBSIDIAN_URL": "https://example.com",
+                    "GRIOSAI_MLFLOW_TRACKING_URI": "http://mlflow-tracking:5000",
                 },
             )
             self.assertEqual(doctor_exit_code(checks), 1)
             self.assertTrue(any(check.name == "obsidian-url" and check.status == "fail" for check in checks))
+            self.assertTrue(any(check.name == "mlflow-tracking-uri" and check.status == "fail" for check in checks))
             self.assertTrue(any(check.name == "notebook-packets" and check.status == "fail" for check in checks))
+
+    def test_doctor_warns_when_remote_mlflow_is_explicit(self) -> None:
+        checks = run_doctor(
+            environ={
+                "GRIOSAI_HOST": "127.0.0.1",
+                "GRIOSAI_OBSIDIAN_URL": "https://127.0.0.1:27124",
+                "GRIOSAI_MLFLOW_TRACKING_URI": "http://mlflow-tracking:5000",
+                "GRIOSAI_MLFLOW_ALLOW_REMOTE": "true",
+            }
+        )
+
+        self.assertEqual(doctor_exit_code(checks), 0)
+        self.assertTrue(
+            any(check.name == "mlflow-tracking-uri" and check.status == "warn" for check in checks)
+        )
 
 
 if __name__ == "__main__":

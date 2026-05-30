@@ -37,13 +37,17 @@ class ClientError(ValueError):
 
 
 def run_server(config: GriosConfig) -> None:
+    generated_token = config.api_token is None
     if config.api_token is None:
         config = replace(config, api_token=secrets.token_urlsafe(24))
     ensure_vault(config.vault_dir)
     handler = make_handler(config)
     server = ThreadingHTTPServer((config.host, config.port), handler)
     print(f"GriosAI listening on http://{config.host}:{config.port}")
-    print(f"Mutation API token: {config.api_token}")
+    if generated_token:
+        print(f"Generated mutation API token: {config.api_token}")
+    else:
+        print("Mutation API token: configured")
     if config.host != "127.0.0.1":
         print("Warning: non-local bind requested. Confirm your network exposure is intentional.")
     try:

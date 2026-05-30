@@ -16,6 +16,10 @@ dashboard without sending private data to a server.
 - Dashboard: self-contained HTML written into the vault.
 - Obsidian sync: optional Local REST API adapter, localhost-only and
   token-authenticated.
+- MLflow tracking: optional REST adapter that logs privacy-preserving metadata
+  only, localhost-only unless remote tracking is explicitly allowed.
+- Kubernetes: optional deployment manifests and container image definitions for
+  private ClusterIP operation with PVC-backed vault storage.
 - Safety doctor: local readiness checks for config, vault layout, packet
   privacy, and placeholder-only examples.
 - Credential leases: runtime-only scoped lease scaffold before any cloud
@@ -31,6 +35,8 @@ dashboard without sending private data to a server.
 - No persistent credential broker or cloud token store yet.
 - No public tunnel.
 - No Obsidian plugin dependency.
+- No Kubernetes or MLflow dependency for the core local CLI.
+- No raw-content, screenshot, or artifact uploads to MLflow by default.
 - No hardware-specific optimization.
 
 ## Later Tracks
@@ -38,6 +44,8 @@ dashboard without sending private data to a server.
 - Notebook connector wrapper for existing notebook workflows.
 - Tailscale setup guide/script.
 - Private phone companion flow over Tailscale.
+- Production MLflow backed by external database/object storage if shared
+  tracking becomes required.
 - Hardware tiers: phone-sized companion first, base-station compute later.
 - Persistent credential broker before adding any cloud APIs.
 
