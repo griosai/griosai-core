@@ -2,6 +2,16 @@
 
 Use this checklist before tagging, pushing, or demoing a release.
 
+## Version And Changelog
+
+- Choose the semantic version and update `pyproject.toml`.
+- Update [CHANGELOG.md](../../CHANGELOG.md) with user-visible changes,
+  migrations, security notes, and validation evidence.
+- Confirm README, docs, issue templates, support, security, and governance files
+  describe the current release posture.
+- Confirm any optional adapter changes still leave the core CLI usable without
+  Ollama, Obsidian, MLflow, Kubernetes, Tailscale, or cloud providers.
+
 ## Local Gate
 
 ```bash
@@ -51,6 +61,28 @@ Optional smoke tests:
 - Start local MLflow and run `griosai mlflow-log`.
 - Build `Containerfile` and render Kubernetes manifests.
 
+## Package Artifact Gate
+
+```bash
+python -m pip install -e ".[dev]"
+rm -rf dist build
+python -m build
+python -m twine check dist/*
+TMPDIR="$(mktemp -d)"
+python -m venv "$TMPDIR/venv"
+"$TMPDIR/venv/bin/python" -m pip install dist/*.whl
+"$TMPDIR/venv/bin/griosai" analysis-schema >/dev/null
+```
+
+Artifact checks:
+
+- Wheel and source distribution build from a clean tree.
+- `twine check` passes.
+- Fresh virtual environment can install the wheel.
+- Installed CLI can print the analysis schema and run documented read-only
+  commands.
+- README links and local documentation references pass the test suite.
+
 ## Privacy Gate
 
 - No `.env`, vault, `private/`, `mlruns/`, `mlflow.db`, token, or secret files
@@ -78,3 +110,13 @@ git log --oneline -5
 
 Release commits should be intentional, small enough to review, and backed by
 the validation output above.
+
+## Publication Gate
+
+- Create a signed tag when signing is available.
+- Prefer PyPI trusted publishing from GitHub Actions before using long-lived
+  upload tokens.
+- Attach release notes, built artifacts, and validation evidence to the GitHub
+  release.
+- Publish any security advisory after the fixed release is available.
+- Keep failed or yanked release notes explicit so users know what to avoid.

@@ -7,7 +7,7 @@ local-first brain, dashboard renderer, CLI, and localhost server.
 
 ## Scope
 
-- New repo at `/Users/gustavorios/griosai`.
+- Standalone Codex-ready repository for the GriosAI package.
 - Python package with stdlib-only core.
 - Vault creation and safe writes.
 - Static dashboard rendering.
@@ -43,7 +43,6 @@ PYTHONPATH=src python3 -m griosai.cli sample --vault /tmp/griosai-vault
 
 ## Next Steps After Phase 0
 
-- Add the notebook connector facade once the existing connector API is known.
-- Add optional Obsidian Local REST API sync.
-- Add a Tailscale setup guide/script.
-- Add a credential broker before any cloud provider support.
+This plan is archived as historical context. The current maintained roadmap and
+operator documentation live in [the docs index](../../README.md), with active
+release criteria in [the release checklist](../../ops/release-checklist.md).

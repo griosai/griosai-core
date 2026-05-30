@@ -33,6 +33,10 @@ class OpenApiTests(unittest.TestCase):
             "AnalyzeImageRequest",
             spec["components"]["schemas"],
         )
+        self.assertIn(
+            "500",
+            spec["paths"]["/api/analyze-image"]["post"]["responses"],
+        )
         dashboard_schema = spec["components"]["schemas"]["DashboardSummary"]
         self.assertEqual(dashboard_schema["required"], ["name", "url"])
         self.assertIn("url", dashboard_schema["properties"])

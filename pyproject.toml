@@ -15,13 +15,26 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
     "Topic :: Utilities",
 ]
+
+[project.optional-dependencies]
+dev = ["build>=1.2", "twine>=5.0"]
+mlflow = ["mlflow>=3.1"]
+
+[project.urls]
+Homepage = "https://github.com/gustavorios/griosai"
+Source = "https://github.com/gustavorios/griosai"
+Issues = "https://github.com/gustavorios/griosai/issues"
+Documentation = "https://github.com/gustavorios/griosai/tree/main/docs"
+Security = "https://github.com/gustavorios/griosai/security"
 
 [project.scripts]
 griosai = "griosai.cli:main"

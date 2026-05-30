@@ -6,6 +6,7 @@ entrypoint across supported Python versions.
 ## What It Checks
 
 - Python unit tests.
+- Local Markdown links in README and docs.
 - Python bytecode compilation for `src/griosai/`.
 - Git whitespace errors through `git diff --check`.
 - OpenAPI contract generation through `griosai openapi`.

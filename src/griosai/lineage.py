@@ -4,10 +4,11 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 from typing import Any
+from urllib.parse import urlparse
 
-from .brain import AnalysisRecord, VAULT_DIRS, ensure_vault, safe_child, slugify, unique_path
+from .brain import AnalysisRecord, VAULT_DIRS, ensure_vault, safe_child, slugify, write_unique_text
 
 
 LINEAGE_SCHEMA = "griosai.analysis-lineage.v1"
@@ -80,11 +81,12 @@ def lineage_manifest(
 ) -> dict[str, object]:
     vault = ensure_vault(vault_dir)
     timestamp = _now()
-    analysis_slug = slugify(slug or record.title)
+    record_analysis_id = analysis_id(record)
+    analysis_slug = _metadata_slug(record_analysis_id, slug)
     return {
         "schema": LINEAGE_SCHEMA,
         "generated_at": timestamp,
-        "analysis_id": analysis_id(record),
+        "analysis_id": record_analysis_id,
         "analysis": {
             "slug": analysis_slug,
             "model": record.model,
@@ -114,11 +116,11 @@ def write_lineage_manifest(
     slug: str | None = None,
 ) -> Path:
     vault = ensure_vault(vault_dir)
-    analysis_slug = slugify(slug or record.title)
+    record_analysis_id = analysis_id(record)
+    analysis_slug = _metadata_slug(record_analysis_id, slug)
     manifest = lineage_manifest(vault, record, artifacts=artifacts, slug=analysis_slug)
-    path = unique_path(safe_child(vault, "lineage", f"{analysis_slug}.json"))
-    path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return path
+    path = safe_child(vault, "lineage", f"{analysis_slug}.json")
+    return write_unique_text(path, json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
 def verify_lineage(vault_dir: Path) -> LineageVerification:
@@ -344,8 +346,19 @@ def _forbidden_manifest_keys(value: object) -> set[str]:
 def _source_image_name(value: str | None) -> str | None:
     if not value:
         return None
-    name = Path(value.replace("\\", "/")).name
+    parsed = urlparse(value)
+    if parsed.scheme and parsed.path:
+        name = PurePath(parsed.path).name
+    else:
+        name = PurePath(value.replace("\\", "/")).name
     return name or None
+
+
+def _metadata_slug(record_analysis_id: str, slug: str | None) -> str:
+    fallback = f"analysis-{record_analysis_id[:12]}"
+    if slug is None:
+        return fallback
+    return slugify(slug, fallback=fallback)
 
 
 def _sha256_file(path: Path) -> str:

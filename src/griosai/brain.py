@@ -72,25 +72,38 @@ def write_analysis_note(
 ) -> Path:
     vault = ensure_vault(vault_dir)
     note_slug = slugify(slug or record.title)
-    path = unique_path(safe_child(vault, "notes", f"{note_slug}.md"))
+    path = safe_child(vault, "notes", f"{note_slug}.md")
     body = render_markdown(record)
-    path.write_text(body, encoding="utf-8")
-    return path
+    return write_unique_text(path, body)
 
 
 def unique_path(path: Path) -> Path:
-    if not path.exists():
-        return path
+    for candidate in _unique_candidates(path):
+        if not candidate.exists():
+            return candidate
+    raise FileExistsError(f"Could not allocate a unique path for {path}")
+
+
+def write_unique_text(path: Path, content: str, *, encoding: str = "utf-8") -> Path:
+    for candidate in _unique_candidates(path):
+        try:
+            with candidate.open("x", encoding=encoding) as handle:
+                handle.write(content)
+            return candidate
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"Could not allocate a unique path for {path}")
+
+
+def _unique_candidates(path: Path):
+    yield path
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     stem = path.stem
     suffix = path.suffix
     for counter in range(1, 10_000):
         counter_suffix = "" if counter == 1 else f"-{counter}"
-        candidate = path.with_name(f"{stem}-{timestamp}{counter_suffix}{suffix}")
-        if not candidate.exists():
-            return candidate
-    raise FileExistsError(f"Could not allocate a unique path for {path}")
+        yield path.with_name(f"{stem}-{timestamp}{counter_suffix}{suffix}")
 
 
 def list_notes(vault_dir: Path) -> list[dict[str, str]]:

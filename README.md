@@ -2,15 +2,47 @@
 
 Local-first AI brain and dashboard runner for private image-to-insight workflows.
 
-This repo starts with the safe default from the Claude spec: keep the brain in a
-plain-file vault, call local Ollama models when available, generate self-contained
-HTML dashboards, and serve them from `127.0.0.1` so phone access can be layered
-through Tailscale or a trusted local network later.
+GriosAI keeps the brain in a plain-file vault, calls local Ollama models when
+available, generates self-contained HTML dashboards, and serves them from
+`127.0.0.1` by default so private phone access can be layered through Tailscale
+or another trusted private network later.
+
+## Project Status
+
+GriosAI is pre-1.0 local-first infrastructure. The core CLI, vault layout,
+dashboard renderer, REST contract, backup/restore, lineage manifests, vault
+audit, and privacy-preserving optional adapters are in place. Public exposure,
+cloud providers, and raw-content tracking are intentionally opt-in and must be
+reviewed before use.
+
+## Safety Model
+
+- Vaults stay in user-selected plain directories, not hidden service databases.
+- Services bind to `127.0.0.1` unless the operator explicitly chooses another
+  host.
+- Mutation APIs require bearer-token authorization.
+- Notebook packets, MLflow runs, and lineage manifests avoid raw private
+  content by default.
+- Ollama, Obsidian, MLflow, Kubernetes, and Tailscale are optional adapters; the
+  local CLI and tests run without them.
+
+## Documentation Map
+
+- [REST API contract](docs/api/rest-api.md)
+- [Analysis input schema](docs/spec/analysis-input-schema.md)
+- [Backup and restore](docs/ops/backup-restore.md)
+- [Vault audit](docs/ops/vault-audit.md)
+- [Lineage manifests](docs/ops/lineage.md)
+- [Private phone access](docs/ops/private-phone-access.md)
+- [Validation gate](docs/ops/validation.md)
+- [Release checklist](docs/ops/release-checklist.md)
+- [Full docs index](docs/README.md)
 
 ## Quickstart
 
 ```bash
-cd /Users/gustavorios/griosai
+git clone https://github.com/gustavorios/griosai.git
+cd griosai
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
@@ -30,7 +62,10 @@ image without sending it to a cloud provider:
 
 ```bash
 ollama pull qwen2.5vl:7b
-griosai analyze-image ./examples/sample.png --vault ~/GriosAI-vault --model qwen2.5vl:7b
+cp /path/to/private-image.png ~/GriosAI-vault/images/
+griosai analyze-image ~/GriosAI-vault/images/private-image.png \
+  --vault ~/GriosAI-vault \
+  --model qwen2.5vl:7b
 ```
 
 The command writes a markdown note and HTML dashboard into the vault. If Ollama
@@ -194,6 +229,18 @@ kubectl -n griosai rollout status deployment/griosai
 kubectl -n griosai port-forward svc/griosai 8765:8765
 ```
 
+The container image prints CLI help by default rather than starting a broadly
+bound server. For a local Docker smoke test, publish the host port on loopback
+and make the in-container broad bind explicit:
+
+```bash
+docker run --rm \
+  -p 127.0.0.1:8765:8765 \
+  -v "$HOME/GriosAI-vault:/data/vault" \
+  ghcr.io/gustavorios/griosai:0.1.0 \
+  serve --vault /data/vault --host 0.0.0.0 --allow-host 127.0.0.1
+```
+
 The service is `ClusterIP`, not public. The pod runs as non-root, uses a
 read-only root filesystem, mounts a PVC-backed vault, disables service-account
 token mounting, probes `/api/health` with an allowed local Host header, and
@@ -224,6 +271,14 @@ See [docs/ops/validation.md](docs/ops/validation.md) and
 Expected operator errors, such as invalid JSON, missing files, unsafe paths, or
 unreachable local adapters, return nonzero exit codes with concise stderr
 messages instead of Python tracebacks.
+
+## Contributing And Support
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md), [SUPPORT.md](SUPPORT.md),
+[SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and
+[GOVERNANCE.md](GOVERNANCE.md). The pull request template and issue templates
+ask for validation evidence and privacy-boundary notes because this project
+handles local personal data.
 
 ## Safety Doctor And Credential Leases
 

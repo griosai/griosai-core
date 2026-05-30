@@ -10,13 +10,44 @@ branches exist.
 
 ## Reporting Issues
 
-There is no public security mailbox configured yet because the repository has
-not been pushed to GitHub. Until one exists, report issues directly to the repo
-owner through the private project channel used to create this repo.
+Do not report vulnerabilities through public GitHub issues, discussions, pull
+requests, screenshots, or logs.
+
+Preferred reporting path:
+
+1. Use GitHub Private Vulnerability Reporting on the repository when it is
+   available.
+2. If private reporting is not enabled for your fork or mirror, contact the
+   maintainer listed in [GOVERNANCE.md](GOVERNANCE.md) through a private channel
+   and include `SECURITY: GriosAI` in the subject or opening line.
 
 Do not include live credentials, raw screenshots, private vault contents, or
 full local paths in reports. Use redacted examples and minimal reproduction
 steps.
+
+Expected maintainer response:
+
+- Acknowledge receipt within 3 business days.
+- Confirm impact and affected versions before public disclosure.
+- Prepare a fix on a private branch or advisory fork when the issue can expose
+  private data, credentials, or local files.
+- Credit reporters unless they request anonymity.
+- Publish release notes and advisories after a fix is available.
+
+## Advisory Scope
+
+Security reports are in scope when they affect default local privacy, localhost
+binding, bearer-token mutation protection, path traversal, symlink handling,
+vault backup/restore safety, notebook packet redaction, MLflow metadata-only
+logging, Obsidian localhost enforcement, Kubernetes private exposure, or secret
+handling.
+
+Out of scope for coordinated disclosure:
+
+- Denial-of-service issues requiring local shell access to the same user account.
+- Findings that depend on committing private vault contents or credentials.
+- Public exposure created by an operator bypassing the documented private
+  network defaults without a product defect.
 
 ## Security Expectations
 

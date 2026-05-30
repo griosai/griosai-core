@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV HOME=/tmp
 ENV GRIOSAI_VAULT_DIR=/data/vault
-ENV GRIOSAI_HOST=0.0.0.0
+ENV GRIOSAI_HOST=127.0.0.1
 ENV GRIOSAI_PORT=8765
 
 WORKDIR /app
@@ -29,4 +29,4 @@ EXPOSE 8765
 VOLUME ["/data/vault"]
 
 ENTRYPOINT ["griosai"]
-CMD ["serve", "--vault", "/data/vault", "--host", "0.0.0.0", "--port", "8765"]
+CMD ["--help"]

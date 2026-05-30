@@ -54,6 +54,9 @@ class KubernetesManifestTests(unittest.TestCase):
 
         self.assertIn("USER 10001:10001", app)
         self.assertIn("USER 10001:10001", mlflow)
+        self.assertIn("ENV GRIOSAI_HOST=127.0.0.1", app)
+        self.assertIn('CMD ["--help"]', app)
+        self.assertNotIn("ENV GRIOSAI_HOST=0.0.0.0", app)
         self.assertIn("mlflow==${MLFLOW_VERSION}", mlflow)
 
 

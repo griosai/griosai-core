@@ -7,8 +7,9 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from griosai.brain import ensure_vault
+from griosai.brain import AnalysisRecord, ensure_vault
 from griosai.cli import main
+from griosai.lineage import analysis_id
 
 
 class CliTests(unittest.TestCase):
@@ -16,10 +17,8 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             payload = Path(tmp) / "analysis.json"
             vault = Path(tmp) / "vault"
-            payload.write_text(
-                '{"title": "Manual Insight", "summary": "No model required"}',
-                encoding="utf-8",
-            )
+            payload_data = {"title": "Manual Insight", "summary": "No model required"}
+            payload.write_text(json.dumps(payload_data), encoding="utf-8")
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(
                     main(["add-analysis", "--vault", str(vault), "--json-file", str(payload)]),
@@ -27,7 +26,11 @@ class CliTests(unittest.TestCase):
                 )
             self.assertTrue((vault / "notes" / "manual-insight.md").exists())
             self.assertTrue((vault / "dashboards" / "manual-insight.html").exists())
-            self.assertTrue((vault / "lineage" / "manual-insight.json").exists())
+            expected_id = analysis_id(
+                AnalysisRecord.from_mapping(payload_data, model="manual")
+            )
+            expected_lineage = f"analysis-{expected_id[:12]}.json"
+            self.assertTrue((vault / "lineage" / expected_lineage).exists())
 
     def test_credential_lease_cli_redacts_token(self) -> None:
         with patch.dict(os.environ, {"SERVICE_TOKEN": "super-" + "secret-token"}):

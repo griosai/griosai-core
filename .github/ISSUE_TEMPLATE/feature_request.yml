@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose a GriosAI improvement with its privacy boundary.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What operator workflow should this improve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the change and expected user experience.
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy and data boundary
+      description: What data leaves the vault, which services receive it, and is the adapter optional?
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation idea
+      description: What tests, docs, or smoke checks should prove this is safe?

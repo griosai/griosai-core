@@ -273,8 +273,8 @@ def analysis_mlflow_payload(
     slug: str | None = None,
 ) -> dict[str, Any]:
     timestamp_ms = _now_ms()
-    analysis_slug = slugify(slug or record.title)
     record_analysis_id = analysis_id(record)
+    analysis_slug = _metadata_slug(record_analysis_id, slug)
     source_image_name = _source_image_name(record.source_image)
 
     params = [
@@ -372,6 +372,13 @@ def _source_image_name(value: str | None) -> str | None:
     else:
         name = PurePath(value.replace("\\", "/")).name
     return _safe_param_value(name) if name else None
+
+
+def _metadata_slug(record_analysis_id: str, slug: str | None) -> str:
+    fallback = f"analysis-{record_analysis_id[:12]}"
+    if slug is None:
+        return fallback
+    return slugify(slug, fallback=fallback)
 
 
 def _run_info(payload: dict[str, Any]) -> dict[str, Any]:

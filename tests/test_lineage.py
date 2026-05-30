@@ -69,6 +69,33 @@ class LineageTests(unittest.TestCase):
                 hashlib.sha256(note.read_bytes()).hexdigest(),
             )
 
+    def test_default_lineage_slug_uses_analysis_id_and_sanitizes_source_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = ensure_vault(Path(tmp) / "vault")
+            secret = "supersecret-token-value"
+            record = AnalysisRecord(
+                title=f"Private Customer {secret}",
+                summary="Local",
+                source_image=f"https://example.test/images/private.png?token={secret}#frag",
+            )
+            note = write_analysis_note(vault, record, slug="artifact")
+            dashboard = write_dashboard(vault, record, slug="artifact")
+
+            manifest_path = write_lineage_manifest(
+                vault,
+                record,
+                artifacts={"dashboard": dashboard, "note": note},
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            encoded = json.dumps(manifest, sort_keys=True)
+            expected_slug = f"analysis-{analysis_id(record)[:12]}"
+
+            self.assertEqual(manifest_path.name, f"{expected_slug}.json")
+            self.assertEqual(manifest["analysis"]["slug"], expected_slug)
+            self.assertEqual(manifest["analysis"]["source_image_name"], "private.png")
+            self.assertNotIn(secret, encoded)
+            self.assertNotIn(record.title, encoded)
+
     def test_verify_lineage_detects_artifact_tampering(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault = ensure_vault(Path(tmp) / "vault")

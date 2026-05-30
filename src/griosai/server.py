@@ -30,6 +30,7 @@ HTML_CSP = (
     "default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; "
     "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 )
+_BEARER_RE = re.compile(r"(?i)\bbearer\s+[a-z0-9._~+/=-]{8,}")
 
 
 class ClientError(ValueError):
@@ -120,14 +121,13 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
                     ollama_url=config.ollama_url,
                     prompt=prompt,
                 )
-                slug = slugify(record.title)
-                note_path = write_analysis_note(config.vault_dir, record, slug=slug)
-                dashboard_path = write_dashboard(config.vault_dir, record, slug=slug)
+                artifact_slug = slugify(record.title)
+                note_path = write_analysis_note(config.vault_dir, record, slug=artifact_slug)
+                dashboard_path = write_dashboard(config.vault_dir, record, slug=artifact_slug)
                 lineage_path = write_lineage_manifest(
                     config.vault_dir,
                     record,
                     artifacts={"dashboard": dashboard_path, "note": note_path},
-                    slug=slug,
                 )
                 self._send_json(
                     {
@@ -135,7 +135,7 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
                         "note": str(note_path),
                         "dashboard": str(dashboard_path),
                         "lineage": str(lineage_path),
-                        "dashboard_url": f"/dashboards/{dashboard_path.name}",
+                        "dashboard_url": f"/dashboards/{quote(dashboard_path.name)}",
                     },
                     status=HTTPStatus.CREATED,
                 )
@@ -164,9 +164,22 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
             if "/" in name or "\\" in name or not name.endswith(".html"):
                 self._send_json({"error": "invalid dashboard name"}, status=HTTPStatus.BAD_REQUEST)
                 return
-            path = safe_child(ensure_vault(config.vault_dir), "dashboards", name)
+            vault = ensure_vault(config.vault_dir)
+            dashboards_dir = safe_child(vault, "dashboards")
+            candidate = dashboards_dir / name
+            if candidate.is_symlink():
+                self._send_json({"error": "invalid dashboard name"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            try:
+                path = safe_child(vault, "dashboards", name)
+            except ValueError:
+                self._send_json({"error": "invalid dashboard name"}, status=HTTPStatus.BAD_REQUEST)
+                return
             if not path.exists():
                 self._send_json({"error": "dashboard not found"}, status=HTTPStatus.NOT_FOUND)
+                return
+            if not path.is_file():
+                self._send_json({"error": "invalid dashboard name"}, status=HTTPStatus.BAD_REQUEST)
                 return
             self._send_html(path.read_text(encoding="utf-8"))
 
@@ -185,6 +198,8 @@ def make_handler(config: GriosConfig) -> type[BaseHTTPRequestHandler]:
             body = self.rfile.read(length)
             try:
                 parsed = json.loads(body.decode("utf-8"))
+            except UnicodeDecodeError as exc:
+                raise ClientError("request body must be valid UTF-8", HTTPStatus.BAD_REQUEST) from exc
             except json.JSONDecodeError as exc:
                 raise ClientError("request body must be valid JSON", HTTPStatus.BAD_REQUEST) from exc
             if not isinstance(parsed, dict):
@@ -354,6 +369,13 @@ def _resolve_api_image_path(vault_dir: Path, raw_path: str) -> Path:
             "REST image_path must use a supported image extension",
             HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
         )
+    if not image.exists():
+        raise FileNotFoundError(image)
+    if not image.is_file():
+        raise ClientError(
+            "REST image_path must point to a regular image file",
+            HTTPStatus.BAD_REQUEST,
+        )
     return image
 
 
@@ -380,6 +402,7 @@ def _redact_log_value(value: str) -> str:
         "[local-path]",
         value,
     )
+    text = _BEARER_RE.sub("Bearer [redacted]", text)
     return re.sub(
         r"(?i)(authorization|api[_-]?key|token|secret|password)=([^&\s]+)",
         r"\1=[redacted]",

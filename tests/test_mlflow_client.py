@@ -43,10 +43,22 @@ class MlflowClientTests(unittest.TestCase):
 
         self.assertNotIn(secret, encoded)
         self.assertNotIn("/Users/gustavorios", encoded)
+        self.assertNotIn("Sensitive Customer Finding", encoded)
+        self.assertNotIn("sensitive-customer-finding", encoded)
         self.assertNotIn(record.summary, encoded)
         self.assertIn("kitchen.png", encoded)
         self.assertIn("griosai.analysis_id", encoded)
+        self.assertIn(f"analysis-{payload['analysis_id'][:12]}", encoded)
         self.assertIn("griosai.summary_chars", encoded)
+
+    def test_payload_uses_explicit_safe_slug_when_supplied(self) -> None:
+        record = AnalysisRecord(title="Private Customer Name", summary="Local")
+
+        payload = analysis_mlflow_payload(record, slug="public-demo")
+        encoded = json.dumps(payload, sort_keys=True)
+
+        self.assertIn("griosai-public-demo", encoded)
+        self.assertNotIn("Private Customer Name", encoded)
 
     def test_log_analysis_uses_mlflow_rest_api(self) -> None:
         secret = "sk-" + ("B" * 24)

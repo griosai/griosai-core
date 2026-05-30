@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import Path
+from urllib.parse import quote
 
-from .brain import AnalysisRecord, ensure_vault, safe_child, slugify, unique_path
+from .brain import AnalysisRecord, ensure_vault, safe_child, slugify, write_unique_text
 
 
 def render_dashboard(record: AnalysisRecord) -> str:
@@ -139,19 +140,23 @@ def write_dashboard(
 ) -> Path:
     vault = ensure_vault(vault_dir)
     dashboard_slug = slugify(slug or record.title)
-    path = unique_path(safe_child(vault, "dashboards", f"{dashboard_slug}.html"))
-    path.write_text(render_dashboard(record), encoding="utf-8")
-    return path
+    path = safe_child(vault, "dashboards", f"{dashboard_slug}.html")
+    return write_unique_text(path, render_dashboard(record))
 
 
 def list_dashboards(vault_dir: Path) -> list[dict[str, str]]:
     dashboards_dir = safe_child(ensure_vault(vault_dir), "dashboards")
     dashboards: list[dict[str, str]] = []
-    for path in sorted(dashboards_dir.glob("*.html"), key=lambda item: item.stat().st_mtime, reverse=True):
+    paths = [
+        path
+        for path in dashboards_dir.glob("*.html")
+        if not path.is_symlink() and path.is_file()
+    ]
+    for path in sorted(paths, key=lambda item: item.stat().st_mtime, reverse=True):
         dashboards.append(
             {
                 "name": path.name,
-                "url": f"/dashboards/{path.name}",
+                "url": f"/dashboards/{quote(path.name)}",
             }
         )
     return dashboards

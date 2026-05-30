@@ -7,6 +7,10 @@ hard requirement for local development.
 ## Design
 
 - GriosAI runs from `Containerfile` as UID/GID `10001`.
+- The root container image prints CLI help by default. Kubernetes explicitly
+  passes `serve --host 0.0.0.0` behind a private `ClusterIP` Service; local
+  Docker runs should publish `127.0.0.1:8765:8765` and make any broad
+  in-container bind explicit.
 - The vault lives on a PVC mounted at `/data/vault`.
 - The app service is `ClusterIP` only.
 - The app pod uses non-root execution, read-only root filesystem, dropped Linux

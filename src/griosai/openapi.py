@@ -173,6 +173,7 @@ _OPENAPI_SPEC: dict[str, Any] = {
                     "404": {"$ref": "#/components/responses/NotFound"},
                     "413": {"$ref": "#/components/responses/PayloadTooLarge"},
                     "415": {"$ref": "#/components/responses/UnsupportedMediaType"},
+                    "500": {"$ref": "#/components/responses/InternalServerError"},
                     "502": {"$ref": "#/components/responses/BadGateway"},
                 },
             }
@@ -305,6 +306,12 @@ _OPENAPI_SPEC: dict[str, Any] = {
             },
             "BadGateway": {
                 "description": "Local model adapter failed.",
+                "content": {
+                    "application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}
+                },
+            },
+            "InternalServerError": {
+                "description": "Unexpected server failure.",
                 "content": {
                     "application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}
                 },

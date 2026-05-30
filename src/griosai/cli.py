@@ -78,14 +78,14 @@ def _main(argv: list[str] | None = None) -> int:
             ollama_url=config.ollama_url,
             prompt=args.prompt,
         )
-        slug = slugify(args.slug or record.title)
-        note = write_analysis_note(config.vault_dir, record, slug=slug)
-        dashboard = write_dashboard(config.vault_dir, record, slug=slug)
+        artifact_slug = slugify(args.slug or record.title)
+        note = write_analysis_note(config.vault_dir, record, slug=artifact_slug)
+        dashboard = write_dashboard(config.vault_dir, record, slug=artifact_slug)
         lineage = write_lineage_manifest(
             config.vault_dir,
             record,
             artifacts={"dashboard": dashboard, "note": note},
-            slug=slug,
+            slug=args.slug,
         )
         print(f"Wrote note: {note}")
         print(f"Wrote dashboard: {dashboard}")
@@ -94,14 +94,14 @@ def _main(argv: list[str] | None = None) -> int:
     if args.command == "add-analysis":
         payload = _load_json_payload(args.json_file)
         record = AnalysisRecord.from_mapping(payload, model="manual")
-        slug = slugify(args.slug or record.title)
-        note = write_analysis_note(Path(args.vault), record, slug=slug)
-        dashboard = write_dashboard(Path(args.vault), record, slug=slug)
+        artifact_slug = slugify(args.slug or record.title)
+        note = write_analysis_note(Path(args.vault), record, slug=artifact_slug)
+        dashboard = write_dashboard(Path(args.vault), record, slug=artifact_slug)
         lineage = write_lineage_manifest(
             Path(args.vault),
             record,
             artifacts={"dashboard": dashboard, "note": note},
-            slug=slug,
+            slug=args.slug,
         )
         print(f"Wrote note: {note}")
         print(f"Wrote dashboard: {dashboard}")

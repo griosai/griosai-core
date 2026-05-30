@@ -71,6 +71,25 @@ class ServerTests(unittest.TestCase):
                 response = sock.recv(4096)
             self.assertIn(b"400", response.splitlines()[0])
 
+    def test_invalid_utf8_json_body_is_rejected(self) -> None:
+        with running_server() as server:
+            port = server.server_address[1]
+            with socket.create_connection(("127.0.0.1", port), timeout=5) as sock:
+                body = b"\xff"
+                sock.sendall(
+                    (
+                        "POST /api/analyze-image HTTP/1.1\r\n"
+                        f"Host: 127.0.0.1:{port}\r\n"
+                        "Authorization: Bearer test-token\r\n"
+                        "Content-Type: application/json\r\n"
+                        f"Content-Length: {len(body)}\r\n"
+                        "\r\n"
+                    ).encode("utf-8")
+                    + body
+                )
+                response = sock.recv(4096)
+            self.assertIn(b"400", response.splitlines()[0])
+
     def test_get_health_allows_local_host(self) -> None:
         with running_server() as server:
             response = request(server, "GET", "/api/health")
@@ -147,12 +166,48 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(payload["error"], "internal server error")
             self.assertNotIn("/Users/gustavorios", json.dumps(payload))
 
+    def test_post_analyze_image_rejects_directory_image_path(self) -> None:
+        with running_server() as server:
+            vault = Path(server.griosai_vault_dir)
+            image_dir = vault / "images" / "sample.png"
+            image_dir.mkdir()
+            body = json.dumps({"image_path": str(image_dir)}).encode("utf-8")
+
+            response = request(
+                server,
+                "POST",
+                "/api/analyze-image",
+                body=body,
+                headers={
+                    "Authorization": "Bearer test-token",
+                    "Content-Type": "application/json",
+                },
+            )
+            payload = json.loads(response.read().decode("utf-8"))
+
+            self.assertEqual(response.status, 400)
+            self.assertEqual(payload["error"], "REST image_path must point to a regular image file")
+
     def test_html_responses_include_security_headers(self) -> None:
         with running_server() as server:
             response = request(server, "GET", "/")
             self.assertEqual(response.status, 200)
             self.assertIn("frame-ancestors 'none'", response.getheader("Content-Security-Policy"))
             self.assertEqual(response.getheader("Referrer-Policy"), "no-referrer")
+
+    def test_dashboard_symlink_is_rejected_without_disclosing_target(self) -> None:
+        with running_server() as server:
+            vault = Path(server.griosai_vault_dir)
+            outside = vault.parent / "outside.html"
+            outside.write_text("private", encoding="utf-8")
+            (vault / "dashboards" / "outside.html").symlink_to(outside)
+
+            response = request(server, "GET", "/dashboards/outside.html")
+            payload = json.loads(response.read().decode("utf-8"))
+
+            self.assertEqual(response.status, 400)
+            self.assertEqual(payload["error"], "invalid dashboard name")
+            self.assertNotIn(str(outside), json.dumps(payload))
 
     def test_run_server_does_not_print_configured_token(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -178,6 +233,10 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn("/home/gustavo", redacted)
         self.assertNotIn("~/z", redacted)
         self.assertNotIn(r"C:\Users", redacted)
+        self.assertEqual(
+            _redact_log_value("Authorization: Bearer " + "abcdefghijk12345"),
+            "Authorization: Bearer [redacted]",
+        )
 
 
 class running_server:

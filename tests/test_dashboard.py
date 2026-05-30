@@ -33,6 +33,21 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(dashboards[0]["url"], "/dashboards/phase-0.html")
             self.assertNotIn("path", dashboards[0])
 
+    def test_list_dashboards_quotes_manual_filenames_and_skips_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = Path(tmp)
+            dashboards_dir = vault / "dashboards"
+            dashboards_dir.mkdir()
+            manual = dashboards_dir / "manual report.html"
+            manual.write_text("<!doctype html>", encoding="utf-8")
+            target = vault / "linked-target.html"
+            target.write_text("<!doctype html>", encoding="utf-8")
+            (dashboards_dir / "linked.html").symlink_to(target)
+
+            dashboards = list_dashboards(vault)
+
+            self.assertEqual(dashboards, [{"name": "manual report.html", "url": "/dashboards/manual%20report.html"}])
+
     def test_rest_image_path_must_stay_in_vault_images(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault = Path(tmp) / "vault"
