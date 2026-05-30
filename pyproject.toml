@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "griosai"
+version = "0.1.0"
+description = "Local-first AI brain and dashboard runner"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Gustavo Rios" }]
+license = "MIT"
+
+[project.scripts]
+griosai = "griosai.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+

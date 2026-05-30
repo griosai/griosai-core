@@ -1,0 +1,12 @@
+{
+  "title": "GriosAI Sample",
+  "summary": "Example analysis payload for local dashboard rendering.",
+  "observations": [
+    "The vault stores markdown and HTML as plain files.",
+    "The dashboard renderer escapes model-provided text."
+  ],
+  "actions": [
+    "Run griosai sample to create a dashboard.",
+    "Run griosai serve to view it locally."
+  ]
+}
