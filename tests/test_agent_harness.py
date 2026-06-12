@@ -136,7 +136,7 @@ class AgentHarnessTests(unittest.TestCase):
     def test_create_agent_run_hashes_private_prompt_and_subject(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault = ensure_vault(Path(tmp) / "vault")
-            secret = "sk-" + ("C" * 24)
+            secret = "sk-proj-" + ("C" * 24)
             prompt = f"Private customer request {secret}"
 
             result = create_agent_run(

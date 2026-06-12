@@ -78,7 +78,7 @@ class NotebookTests(unittest.TestCase):
             self.assertTrue(any("subdirectory" in finding for finding in findings))
 
     def test_redact_text_removes_paths_and_likely_secrets(self) -> None:
-        openai_style_key = "sk-" + "abcdefghijklmnop"
+        openai_style_key = "sk-proj-" + "abcdefghijklmnop"
         text = redact_text(
             "mac=/Users/gustavorios/x "
             "linux=/home/gustavo/private/file.md "

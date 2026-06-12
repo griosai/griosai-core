@@ -46,11 +46,13 @@ class DoctorTests(unittest.TestCase):
                 environ={
                     "GRIOSAI_HOST": "0.0.0.0",
                     "GRIOSAI_API_TOKEN": "short",
+                    "GRIOSAI_OLLAMA_URL": "http://user:pass@127.0.0.1:11434",
                     "GRIOSAI_OBSIDIAN_URL": "https://example.com",
                     "GRIOSAI_MLFLOW_TRACKING_URI": "http://mlflow-tracking:5000",
                 },
             )
             self.assertEqual(doctor_exit_code(checks), 1)
+            self.assertTrue(any(check.name == "ollama-url" and check.status == "fail" for check in checks))
             self.assertTrue(any(check.name == "obsidian-url" and check.status == "fail" for check in checks))
             self.assertTrue(any(check.name == "mlflow-tracking-uri" and check.status == "fail" for check in checks))
             self.assertTrue(any(check.name == "notebook-packets" and check.status == "fail" for check in checks))
@@ -69,6 +71,23 @@ class DoctorTests(unittest.TestCase):
         self.assertTrue(
             any(check.name == "mlflow-tracking-uri" and check.status == "warn" for check in checks)
         )
+
+    def test_doctor_flags_project_style_key_in_env_example(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            (repo / ".gitignore").write_text("GriosAI-vault/\nprivate/\n*.token\n", encoding="utf-8")
+            (repo / ".env.example").write_text("sk-proj-" + ("D" * 24) + "\n", encoding="utf-8")
+
+            checks = run_doctor(
+                repo_dir=repo,
+                environ={
+                    "GRIOSAI_HOST": "127.0.0.1",
+                    "GRIOSAI_OBSIDIAN_URL": "https://127.0.0.1:27124",
+                },
+            )
+
+            self.assertTrue(any(check.name == "env-example" and check.status == "fail" for check in checks))
 
 
 if __name__ == "__main__":

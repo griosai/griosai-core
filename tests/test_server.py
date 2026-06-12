@@ -97,6 +97,17 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(response.getheader("Cache-Control"), "no-store")
             self.assertEqual(response.getheader("X-Content-Type-Options"), "nosniff")
 
+    def test_get_rejects_malformed_host_header(self) -> None:
+        with running_server() as server:
+            response = request(
+                server,
+                "GET",
+                "/api/health",
+                headers={"Host": "127.0.0.1@evil.example"},
+            )
+
+            self.assertEqual(response.status, 403)
+
     def test_get_openapi_returns_contract(self) -> None:
         with running_server() as server:
             response = request(server, "GET", "/api/openapi.json")
@@ -245,12 +256,14 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn("configured-token-value", output.getvalue())
 
     def test_log_redactor_removes_paths_and_credentials(self) -> None:
+        openai_key = "sk-proj-" + ("A" * 24)
         redacted = _redact_log_value(
-            r"token=secret-value mac=/Users/gustavorios/x linux=/home/gustavo/y home=~/z windows=C:\Users\gustavo\a"
+            rf"token=secret-value key={openai_key} mac=/Users/gustavorios/x linux=/home/gustavo/y home=~/z windows=C:\Users\gustavo\a"
         )
 
         self.assertIn("token=[redacted]", redacted)
         self.assertNotIn("secret-value", redacted)
+        self.assertNotIn(openai_key, redacted)
         self.assertNotIn("/Users/gustavorios", redacted)
         self.assertNotIn("/home/gustavo", redacted)
         self.assertNotIn("~/z", redacted)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ipaddress
 import json
 import os
 import time
@@ -13,6 +12,8 @@ from typing import Any
 
 from .brain import AnalysisRecord, slugify
 from .lineage import analysis_id
+from .privacy import redact_likely_secrets
+from .url_safety import is_loopback_url, parse_http_url
 
 
 DEFAULT_MLFLOW_TRACKING_URI = "http://127.0.0.1:5000"
@@ -312,15 +313,7 @@ def analysis_mlflow_payload(
 
 
 def validate_tracking_uri(value: str, *, allow_remote: bool = False) -> None:
-    parsed = urllib.parse.urlparse(value)
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError("MLflow tracking URI must use http or https")
-    if parsed.username or parsed.password:
-        raise ValueError("MLflow tracking URI must not include credentials")
-    if parsed.query or parsed.fragment:
-        raise ValueError("MLflow tracking URI must not include query or fragment values")
-    if not parsed.hostname:
-        raise ValueError("MLflow tracking URI must include a hostname")
+    parse_http_url(value, field_name="MLflow tracking URI")
     if not allow_remote and not is_loopback_tracking_uri(value):
         raise ValueError(
             "MLflow tracking URI must point to localhost unless remote tracking is explicitly allowed"
@@ -328,14 +321,7 @@ def validate_tracking_uri(value: str, *, allow_remote: bool = False) -> None:
 
 
 def is_loopback_tracking_uri(value: str) -> bool:
-    parsed = urllib.parse.urlparse(value)
-    hostname = parsed.hostname or ""
-    if hostname == "localhost":
-        return True
-    try:
-        return ipaddress.ip_address(hostname).is_loopback
-    except ValueError:
-        return False
+    return is_loopback_url(value)
 
 
 def bool_env(value: str | None, default: bool) -> bool:
@@ -357,7 +343,7 @@ def _tag(key: str, value: object) -> dict[str, str]:
 
 
 def _safe_param_value(value: object) -> str:
-    text = " ".join(str(value).split())
+    text = " ".join(redact_likely_secrets(value).split())
     if len(text) <= MAX_PARAM_VALUE_CHARS:
         return text
     return text[: MAX_PARAM_VALUE_CHARS - 3] + "..."
@@ -378,7 +364,7 @@ def _metadata_slug(record_analysis_id: str, slug: str | None) -> str:
     fallback = f"analysis-{record_analysis_id[:12]}"
     if slug is None:
         return fallback
-    return slugify(slug, fallback=fallback)
+    return slugify(redact_likely_secrets(slug), fallback=fallback)
 
 
 def _run_info(payload: dict[str, Any]) -> dict[str, Any]:

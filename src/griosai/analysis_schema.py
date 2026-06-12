@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
-import re
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
+
+from .privacy import OPENAI_STYLE_KEY_RE, SECRET_VALUE_RE
 
 
 ANALYSIS_SCHEMA_VERSION = "griosai.analysis-input.v1"
@@ -13,11 +14,6 @@ MAX_ANALYSIS_STRING_CHARS = 20_000
 MAX_ANALYSIS_LIST_ITEMS = 500
 MAX_ANALYSIS_OBJECT_KEYS = 500
 MAX_ANALYSIS_DEPTH = 12
-
-SECRET_VALUE_RE = re.compile(
-    r"(?i)\b(api[_-]?key|token|secret|password)\s*[:=]\s*['\"]?[a-z0-9._~+/=-]{20,}"
-)
-OPENAI_STYLE_KEY_RE = re.compile(r"\bsk-[a-zA-Z0-9]{16,}\b")
 
 
 @dataclass(frozen=True)

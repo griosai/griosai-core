@@ -96,6 +96,30 @@ class LineageTests(unittest.TestCase):
             self.assertNotIn(secret, encoded)
             self.assertNotIn(record.title, encoded)
 
+    def test_lineage_manifest_redacts_key_shaped_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = ensure_vault(Path(tmp) / "vault")
+            secret = "sk-proj-" + ("L" * 24)
+            record = AnalysisRecord(
+                title="Metadata Redaction",
+                summary="Local",
+                model=f"model-{secret}",
+                source_image=f"/tmp/{secret}.png",
+            )
+            note = write_analysis_note(vault, record, slug="artifact")
+            dashboard = write_dashboard(vault, record, slug="artifact")
+
+            manifest_path = write_lineage_manifest(
+                vault,
+                record,
+                artifacts={"dashboard": dashboard, "note": note},
+                slug=f"slug-{secret}",
+            )
+            encoded = json.dumps(json.loads(manifest_path.read_text(encoding="utf-8")), sort_keys=True)
+
+            self.assertNotIn(secret, encoded)
+            self.assertIn("[redacted-secret]", encoded)
+
     def test_verify_lineage_detects_artifact_tampering(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault = ensure_vault(Path(tmp) / "vault")

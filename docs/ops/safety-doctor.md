@@ -15,6 +15,7 @@ The command does not mutate the vault. It inspects:
 
 - server host defaults
 - mutation token length, if explicitly configured
+- Ollama adapter URL syntax and credential-free endpoint safety
 - Obsidian URL locality
 - MLflow tracking URI locality or explicit remote opt-in
 - repo ignore patterns

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .brain import AnalysisRecord
+from .url_safety import parse_http_url
 
 
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
@@ -55,13 +56,22 @@ def analyze_image(
             }
         ],
     }
-    response = _post_json(f"{ollama_url.rstrip('/')}/api/chat", payload, timeout_seconds)
+    response = _post_json(ollama_chat_url(ollama_url), payload, timeout_seconds)
     content = response.get("message", {}).get("content")
     if not isinstance(content, str):
-        raise OllamaError(f"Ollama response did not include message.content: {response}")
+        raise OllamaError("Ollama response did not include message.content")
 
     parsed = _parse_model_json(content)
     return AnalysisRecord.from_mapping(parsed, model=model, source_image=str(image))
+
+
+def ollama_chat_url(base_url: str) -> str:
+    validate_ollama_url(base_url)
+    return f"{base_url.rstrip('/')}/api/chat"
+
+
+def validate_ollama_url(value: str) -> None:
+    parse_http_url(value, field_name="Ollama URL")
 
 
 def _post_json(url: str, payload: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
@@ -85,7 +95,7 @@ def _parse_model_json(content: str) -> dict[str, Any]:
     try:
         parsed = json.loads(content)
     except json.JSONDecodeError as exc:
-        raise OllamaError(f"Model did not return valid JSON: {content[:300]}") from exc
+        raise OllamaError("Model did not return valid JSON") from exc
     if not isinstance(parsed, dict):
         raise OllamaError("Model JSON must be an object")
     return parsed

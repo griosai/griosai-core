@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -17,12 +16,8 @@ from .mlflow_client import (
 )
 from .notebook import validate_notebook_packet
 from .obsidian import DEFAULT_OBSIDIAN_URL, _validate_loopback_url
-
-
-SECRET_VALUE_RE = re.compile(
-    r"(?i)\b(api[_-]?key|token|secret|password)\s*[:=]\s*['\"]?[a-z0-9._~+/=-]{20,}"
-)
-OPENAI_STYLE_KEY_RE = re.compile(r"\bsk-[a-zA-Z0-9]{16,}\b")
+from .ollama_client import validate_ollama_url
+from .privacy import OPENAI_STYLE_KEY_RE, SECRET_VALUE_RE
 
 
 @dataclass(frozen=True)
@@ -73,7 +68,11 @@ def format_doctor_json(checks: Iterable[DoctorCheck]) -> str:
 
 def _config_checks(*, vault_dir: Path | None, environ: dict[str, str]) -> list[DoctorCheck]:
     checks: list[DoctorCheck] = []
-    config = GriosConfig.from_env(vault_dir=vault_dir, host=environ.get("GRIOSAI_HOST"))
+    config = GriosConfig.from_env(
+        vault_dir=vault_dir,
+        host=environ.get("GRIOSAI_HOST"),
+        ollama_url=environ.get("GRIOSAI_OLLAMA_URL"),
+    )
     if config.host == DEFAULT_HOST:
         checks.append(DoctorCheck("host-default", "pass", "server host defaults to 127.0.0.1"))
     else:
@@ -92,6 +91,13 @@ def _config_checks(*, vault_dir: Path | None, environ: dict[str, str]) -> list[D
         checks.append(DoctorCheck("mutation-token", "pass", "configured mutation token length is acceptable"))
     else:
         checks.append(DoctorCheck("mutation-token", "fail", "configured mutation token is too short"))
+
+    try:
+        validate_ollama_url(config.ollama_url)
+    except ValueError as exc:
+        checks.append(DoctorCheck("ollama-url", "fail", str(exc)))
+    else:
+        checks.append(DoctorCheck("ollama-url", "pass", "Ollama URL is adapter-safe"))
 
     obsidian_url = environ.get("GRIOSAI_OBSIDIAN_URL", DEFAULT_OBSIDIAN_URL)
     try:

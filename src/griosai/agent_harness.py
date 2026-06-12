@@ -15,6 +15,7 @@ from statistics import NormalDist
 from typing import Mapping
 
 from .brain import ensure_vault, safe_child, slugify, write_unique_text
+from .privacy import OPENAI_STYLE_KEY_RE
 
 
 EXPERIMENT_CONFIG_SCHEMA = "griosai.agent-experiment.v1"
@@ -119,7 +120,7 @@ _SENSITIVE_KEY_RE = re.compile(
     r"(^|[_-])(access|auth|bearer|refresh)?[_-]?token($|[_-]))"
 )
 _SECRET_VALUE_RE = re.compile(r"(?i)\b(bearer|api[_-]?key|token|secret|password)\b")
-_OPENAI_STYLE_KEY_RE = re.compile(r"\bsk-[a-zA-Z0-9]{16,}\b")
+_OPENAI_STYLE_KEY_RE = OPENAI_STYLE_KEY_RE
 _ALLOWED_STATUSES = frozenset({"succeeded", "failed", "cancelled", "timeout"})
 _DIRECTIONS = {
     "max": "maximize",

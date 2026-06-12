@@ -26,6 +26,17 @@ class MlflowClientTests(unittest.TestCase):
 
         validate_tracking_uri("http://mlflow-tracking:5000", allow_remote=True)
 
+    def test_rejects_tracking_uri_with_credentials_query_fragment_or_bad_port(self) -> None:
+        for uri in (
+            "http://user:pass@127.0.0.1:5000",
+            "http://127.0.0.1:5000?token=abc",
+            "http://127.0.0.1:5000#fragment",
+            "http://127.0.0.1:bad",
+        ):
+            with self.subTest(uri=uri):
+                with self.assertRaises(ValueError):
+                    validate_tracking_uri(uri, allow_remote=True)
+
     def test_payload_tracks_metadata_without_raw_private_body(self) -> None:
         secret = "sk-" + ("A" * 24)
         record = AnalysisRecord(
@@ -59,6 +70,21 @@ class MlflowClientTests(unittest.TestCase):
 
         self.assertIn("griosai-public-demo", encoded)
         self.assertNotIn("Private Customer Name", encoded)
+
+    def test_payload_redacts_key_shaped_metadata_values(self) -> None:
+        secret = "sk-proj-" + ("M" * 24)
+        record = AnalysisRecord(
+            title="Metadata Secret",
+            summary="Local",
+            model=f"model-{secret}",
+            source_image=f"/tmp/{secret}.png",
+        )
+
+        payload = analysis_mlflow_payload(record, slug=f"slug-{secret}")
+        encoded = json.dumps(payload, sort_keys=True)
+
+        self.assertNotIn(secret, encoded)
+        self.assertIn("[redacted-secret]", encoded)
 
     def test_log_analysis_uses_mlflow_rest_api(self) -> None:
         secret = "sk-" + ("B" * 24)
