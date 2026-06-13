@@ -5,6 +5,10 @@ from typing import Mapping
 from .agent_constants import DEFAULT_CLAIM_STRATEGY
 
 
+def _single_line(value: str) -> str:
+    return " ".join(str(value).splitlines()).strip()
+
+
 def _quarantine_target_text(target: Mapping[str, object]) -> str:
     parts: list[str] = []
     for key, label in (
