@@ -18,4 +18,10 @@ USER 10001:10001
 EXPOSE 5000
 VOLUME ["/mlflow"]
 
+# This single-node tracker runs with NO authentication on purpose. Its security
+# boundary is the ClusterIP-only Service plus the mlflow-tracking-private
+# NetworkPolicy (ingress only from the dashboard pod). Do not expose it publicly.
+# To add real auth, front it with an authenticating reverse proxy and have
+# clients send a bearer token (GRIOSAI_MLFLOW_TRACKING_TOKEN); a token sent to
+# this server directly is ignored. See docs/ops/kubernetes-mlflow.md.
 CMD ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "sqlite:////mlflow/mlflow.db", "--default-artifact-root", "/mlflow/artifacts"]

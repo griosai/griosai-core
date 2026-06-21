@@ -100,6 +100,14 @@ Artifact checks:
   release explicitly adds reviewed public exposure.
 - Kubernetes NetworkPolicies render and still match the intended private app,
   MLflow, DNS, and optional Ollama paths.
+- The bundled MLflow tracker stays no-auth and private: no bearer token is wired
+  into the in-cluster dashboard, and its only boundary is the ClusterIP Service
+  plus the `mlflow-tracking-private` NetworkPolicy (see
+  [kubernetes-mlflow.md](kubernetes-mlflow.md)).
+- If the MLflow tracker holds data worth keeping, the opt-in backup CronJob
+  (`deploy/kubernetes/mlflow/backup-cronjob.yaml`) or a `VolumeSnapshot`
+  schedule is applied and a `mlflow.db` + artifacts restore has been verified
+  (see [backup-restore.md](backup-restore.md)).
 
 ## Git Gate
 

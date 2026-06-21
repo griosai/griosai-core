@@ -91,6 +91,28 @@ pod on TCP `5000` and denies MLflow egress by default. If you move MLflow to an
 external database or object store, add reviewed egress rules for those
 destinations.
 
+### Authentication Posture
+
+The bundled MLflow tracker runs with **no authentication**. Its `mlflow server`
+process does not validate any credential, so a bearer token sent directly to
+`http://mlflow-tracking:5000` is silently ignored. The only access controls are:
+
+- the `ClusterIP`-only Service (no NodePort, LoadBalancer, or Ingress), and
+- the `mlflow-tracking-private` NetworkPolicy, which permits ingress only from
+  the GriosAI dashboard pod and denies MLflow egress by default.
+
+Because the in-cluster server has no auth, the base dashboard Deployment does
+**not** inject `GRIOSAI_MLFLOW_TRACKING_TOKEN`; sending a token to the bundled
+server would be dead plumbing. The client-side bearer-token path
+(`griosai mlflow-log --tracking-token`, or the `GRIOSAI_MLFLOW_TRACKING_TOKEN`
+environment variable) is preserved only for the case where you point
+`GRIOSAI_MLFLOW_TRACKING_URI` at an **external** MLflow that is fronted by an
+authenticating reverse proxy. To add real auth in-cluster, put an
+authenticating proxy in front of MLflow (for example an OAuth2/basic-auth
+sidecar or gateway), wire the matching token into the dashboard via a
+`griosai-mlflow` secret, and only then expose the proxy. Treat any such change
+as a separate, reviewed step.
+
 To inspect runs from your workstation:
 
 ```bash
@@ -109,6 +131,34 @@ GRIOSAI_MLFLOW_TRACKING_URI=http://127.0.0.1:5000 \
 The returned `analysis_id` matches the local lineage manifest for the same
 analysis content, so the MLflow run can be correlated with vault artifacts
 without uploading raw note or dashboard content.
+
+## Optional MLflow Backups
+
+The bundled tracker keeps all durable state on the `mlflow-tracking` PVC: the
+SQLite backend store at `/mlflow/mlflow.db` and run artifacts under
+`/mlflow/artifacts`. That PVC is not backed up by default.
+
+An opt-in backup CronJob lives at
+`deploy/kubernetes/mlflow/backup-cronjob.yaml` and is intentionally left out of
+the default `kustomization.yaml`. Apply it explicitly once the tracker is up:
+
+```bash
+kubectl apply -f deploy/kubernetes/mlflow/backup-cronjob.yaml
+```
+
+It runs daily, takes a consistent online copy of `mlflow.db` with the SQLite
+online backup API (safe while MLflow is writing), tars `/mlflow/artifacts`, and
+writes both to a separate `mlflow-backups` PVC under a timestamped directory,
+pruning copies older than `BACKUP_RETENTION_DAYS`. The `mlflow-tracking` PVC is
+mounted read-write in the backup pod because MLflow runs the database in WAL
+mode and the online backup API must touch the WAL sidecars to read a consistent
+snapshot; the backup only reads committed state and does not modify MLflow data.
+Because both PVCs are `ReadWriteOnce`, the backup Job and the tracker land on
+the same node; with `replicas: 1` that is the normal case.
+
+For details on restoring `mlflow.db` and artifacts, and for the
+`VolumeSnapshot` alternative when your storage class supports the CSI snapshot
+API, see [backup-restore.md](backup-restore.md).
 
 ## Production Notes
 
