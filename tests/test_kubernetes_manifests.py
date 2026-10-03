@@ -36,6 +36,9 @@ class KubernetesManifestTests(unittest.TestCase):
         pvc = (REPO / "deploy/kubernetes/mlflow/pvc.yaml").read_text(encoding="utf-8")
         policy = (REPO / "deploy/kubernetes/mlflow/networkpolicy.yaml").read_text(encoding="utf-8")
         kustomization = (REPO / "deploy/kubernetes/mlflow/kustomization.yaml").read_text(encoding="utf-8")
+        backup = (REPO / "deploy/kubernetes/mlflow/backup-cronjob.yaml").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("type: ClusterIP", service)
         self.assertNotIn("type: LoadBalancer", service)
@@ -47,6 +50,18 @@ class KubernetesManifestTests(unittest.TestCase):
         self.assertIn("egress: []", policy)
         self.assertIn("app.kubernetes.io/name: griosai", policy)
         self.assertIn("networkpolicy.yaml", kustomization)
+        self.assertNotIn("backup-cronjob.yaml", kustomization)
+        self.assertIn("kind: PersistentVolumeClaim", backup)
+        self.assertIn("name: mlflow-backups", backup)
+        self.assertIn("kind: CronJob", backup)
+        self.assertIn("name: mlflow-backup", backup)
+        self.assertIn('schedule: "17 3 * * *"', backup)
+        self.assertIn("concurrencyPolicy: Forbid", backup)
+        self.assertIn("claimName: mlflow-tracking", backup)
+        self.assertIn("claimName: mlflow-backups", backup)
+        self.assertIn("automountServiceAccountToken: false", backup)
+        self.assertIn("readOnlyRootFilesystem: true", backup)
+        self.assertIn("allowPrivilegeEscalation: false", backup)
 
     def test_containerfiles_use_non_root_users(self) -> None:
         app = (REPO / "Containerfile").read_text(encoding="utf-8")
