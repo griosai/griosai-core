@@ -1,4 +1,7 @@
-# GriosAI Codex Instructions
+STATUS: active
+SUMMARY: Local-first personal AI brain and dashboards; preserve private vault data, optional adapters and localhost defaults.
+
+# GriosAI — project instructions
 
 ## Purpose
 
@@ -23,8 +26,7 @@ explicitly opts into LAN, VPN, or Tailscale access.
   required for the local CLI, tests, or vault workflow.
 - Keep generated HTML self-contained and avoid remote assets by default.
 - Add tests for path safety, escaping, and any new filesystem writes.
-- Run `./scripts/validate.sh` before committing unless the change is docs-only
-  and the user explicitly accepts skipping validation.
+- Run affected checks while developing; docs-only instruction changes use link and diff checks. Keep `./scripts/validate.sh` as the authoritative full release gate, run once on the Mac mini before release to main. Never run the full suite on the laptop.
 - Keep Kubernetes services private by default. Public ingress, LoadBalancer, or
   NodePort exposure requires an explicit review and user decision.
 - Keep Kubernetes NetworkPolicies aligned with app labels and documented
