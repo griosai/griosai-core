@@ -6,6 +6,7 @@ import threading
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 import griosai.mlflow_client as mlflow_module
@@ -260,6 +261,38 @@ class MlflowHardeningTests(unittest.TestCase):
                 if req["path"] == "/api/2.0/mlflow/runs/log-batch"
             ]
         self.assertEqual(len(batch_calls), 1)  # no retry: metrics not double-logged
+
+    def test_non_idempotent_writes_are_not_retried_after_send_failure(self) -> None:
+        operations = {
+            "create": lambda client: client.create_run(
+                "42", run_name="test", start_time_ms=0, tags=[]
+            ),
+            "batch": lambda client: client.log_batch(
+                "run-123", metrics=[], params=[], tags=[]
+            ),
+        }
+        for name, operation in operations.items():
+            with self.subTest(operation=name):
+                client = MlflowClient(MlflowConfig())
+                with patch("urllib.request.http.client.HTTPConnection") as connection:
+                    # Exercise urllib's real conversion of a send failure to
+                    # URLError. The server may already have applied the write.
+                    connection.return_value.request.side_effect = ConnectionResetError(
+                        "write outcome unknown"
+                    )
+                    with self.assertRaises(MlflowError):
+                        operation(client)
+                self.assertEqual(connection.return_value.request.call_count, 1)
+
+    def test_idempotent_lookup_retries_transport_failure(self) -> None:
+        client = MlflowClient(MlflowConfig())
+        with patch("urllib.request.http.client.HTTPConnection") as connection:
+            connection.return_value.request.side_effect = ConnectionResetError(
+                "lookup interrupted"
+            )
+            with self.assertRaises(MlflowError):
+                client.get_experiment_by_name("test")
+        self.assertEqual(connection.return_value.request.call_count, MAX_REQUEST_ATTEMPTS)
 
     def test_redirect_to_internal_host_is_refused(self) -> None:
         # A 3xx pivot to a non-loopback host must be re-validated and refused.

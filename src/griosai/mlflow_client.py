@@ -184,9 +184,8 @@ class MlflowClient:
         start_time_ms: int,
         tags: list[dict[str, str]],
     ) -> str:
-        # runs/create is non-idempotent: a confirmed HTTP failure must not be
-        # retried (it could create a duplicate run). idempotent=False keeps the
-        # retry wrapper to connect-level URLError only (request never sent).
+        # runs/create is non-idempotent. A failed response or transport does
+        # not prove the server received nothing, so never replay the request.
         _status, payload = self._request_json(
             "POST",
             "/api/2.0/mlflow/runs/create",
@@ -239,10 +238,8 @@ class MlflowClient:
             # runs/log-batch is NOT replay-safe: metrics are append-only time
             # series, so replaying a batch the server already applied (or
             # partially applied) before returning a 5xx duplicates metric points
-            # (and a differing params re-write can error). idempotent=False keeps
-            # the retry wrapper to connect-level URLError only (request never
-            # sent), surfacing a confirmed HTTP failure immediately instead of
-            # blindly re-logging metrics.
+            # (and a differing params re-write can error). idempotent=False
+            # also refuses transport retries: the write outcome may be unknown.
             self._request_json(
                 "POST",
                 "/api/2.0/mlflow/runs/log-batch",
@@ -357,12 +354,9 @@ class MlflowClient:
 
         Retry policy:
         - Idempotent requests (GET, and POSTs whose replay is safe) retry on
-          connect-level URLError and on HTTP 429/500/502/503/504, honoring
-          Retry-After.
-        - Non-idempotent requests (e.g. runs/create) only retry on
-          connect-level URLError, where the request was never confirmed
-          server-side; a confirmed HTTP failure is surfaced immediately so a
-          partially-applied write is not duplicated.
+          URLError and HTTP 429/500/502/503/504, honoring Retry-After.
+        - Non-idempotent requests (e.g. runs/create) never retry: a transport
+          failure may occur after the server has applied the write.
         """
         expected = expected_statuses or {200}
         url = f"{self.base_url}{path}"
@@ -408,12 +402,12 @@ class MlflowClient:
                     _sleep_backoff(attempt, retry_after)
                     continue
             except urllib.error.URLError as exc:
-                # Connect-level failure: the request was not confirmed by the
-                # server, so it is safe to replay even for non-idempotent POSTs.
+                # URLError can wrap an OSError while sending a request body;
+                # it does not establish that a write was never applied.
                 last_error = MlflowError(
                     f"Could not reach MLflow tracking server: {exc}"
                 )
-                if attempt < MAX_REQUEST_ATTEMPTS:
+                if idempotent and attempt < MAX_REQUEST_ATTEMPTS:
                     _sleep_backoff(attempt, None)
                     continue
                 raise last_error from exc
