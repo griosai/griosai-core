@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import time
 import urllib.error
 import urllib.parse
@@ -20,6 +21,25 @@ DEFAULT_MLFLOW_TRACKING_URI = "http://127.0.0.1:5000"
 DEFAULT_MLFLOW_EXPERIMENT = "GriosAI"
 MAX_PARAM_VALUE_CHARS = 250
 
+# Status surfaced when a run's metrics succeeded but the terminalizing
+# (end_run) call failed; a terminalize-only retry can recover the run.
+STATUS_FINALIZE_FAILED = "RUNNING (finalize failed)"
+
+# Bounded retry policy for transient transport/server failures.
+MAX_REQUEST_ATTEMPTS = 3
+RETRYABLE_HTTP_STATUSES = frozenset({429, 500, 502, 503, 504})
+RETRY_BASE_DELAY_SECONDS = 0.5
+RETRY_MAX_DELAY_SECONDS = 8.0
+
+# MLflow per-call log-batch caps (see runs/log-batch API limits).
+MAX_BATCH_METRICS = 1000
+MAX_BATCH_PARAMS = 100
+MAX_BATCH_TAGS = 100
+MAX_BATCH_TOTAL = 1000
+
+# Tag key used to make analysis runs idempotent across re-runs.
+ANALYSIS_ID_TAG = "griosai.analysis_id"
+
 
 class MlflowError(RuntimeError):
     pass
@@ -32,6 +52,9 @@ class MlflowConfig:
     tracking_token: str | None = None
     allow_remote: bool = False
     timeout_seconds: int = 10
+    # When enabled, log_analysis looks up a prior run keyed by analysis_id
+    # and reuses (or terminalizes) it instead of creating a duplicate run.
+    reuse_existing_runs: bool = False
 
     @classmethod
     def from_env(
@@ -42,8 +65,10 @@ class MlflowConfig:
         tracking_token: str | None = None,
         allow_remote: bool | None = None,
         timeout_seconds: int | str | None = None,
+        reuse_existing_runs: bool | None = None,
     ) -> "MlflowConfig":
         raw_allow = os.getenv("GRIOSAI_MLFLOW_ALLOW_REMOTE")
+        raw_reuse = os.getenv("GRIOSAI_MLFLOW_REUSE_RUNS")
         raw_timeout = timeout_seconds or os.getenv("GRIOSAI_MLFLOW_TIMEOUT") or 10
         return cls(
             tracking_uri=tracking_uri
@@ -57,6 +82,11 @@ class MlflowConfig:
             or None,
             allow_remote=allow_remote if allow_remote is not None else bool_env(raw_allow, False),
             timeout_seconds=int(raw_timeout),
+            reuse_existing_runs=(
+                reuse_existing_runs
+                if reuse_existing_runs is not None
+                else bool_env(raw_reuse, False)
+            ),
         )
 
 
@@ -91,6 +121,14 @@ class MlflowClient:
         validate_tracking_uri(config.tracking_uri, allow_remote=config.allow_remote)
         self.config = config
         self.base_url = config.tracking_uri.rstrip("/")
+        # A single opener is reused for the (typically 5) sequential calls so
+        # urllib can keep the underlying connection warm. The redirect handler
+        # refuses every 3xx so a tracking server cannot pivot the request to an
+        # internal host (e.g. 169.254.169.254) or replay the auth token to a
+        # different origin.
+        self._opener = urllib.request.build_opener(
+            _NoRedirectHandler(allow_remote=config.allow_remote)
+        )
 
     def get_experiment_by_name(self, name: str) -> dict[str, Any] | None:
         status, payload = self._request_json(
@@ -107,11 +145,16 @@ class MlflowClient:
         return experiment
 
     def create_experiment(self, name: str) -> str:
-        _status, payload = self._request_json(
+        # Accept 409 so a create that races another writer (TOCTOU between
+        # get-by-name and create) does not crash; the caller re-resolves.
+        status, payload = self._request_json(
             "POST",
             "/api/2.0/mlflow/experiments/create",
             body={"name": name},
+            expected_statuses={200, 409},
         )
+        if status == 409 or _is_already_exists_error(payload):
+            raise _ExperimentExistsError(name)
         experiment_id = payload.get("experiment_id")
         if experiment_id is None:
             raise MlflowError("MLflow create experiment response did not include experiment_id")
@@ -120,11 +163,18 @@ class MlflowClient:
     def ensure_experiment(self, name: str) -> str:
         experiment = self.get_experiment_by_name(name)
         if experiment is not None:
-            experiment_id = experiment.get("experiment_id")
-            if experiment_id is None:
-                raise MlflowError("MLflow experiment response did not include experiment_id")
-            return str(experiment_id)
-        return self.create_experiment(name)
+            return _experiment_id_from(experiment)
+        try:
+            return self.create_experiment(name)
+        except _ExperimentExistsError:
+            # Lost the create race: another writer created it concurrently.
+            # Resolve to the now-existing experiment instead of failing.
+            experiment = self.get_experiment_by_name(name)
+            if experiment is None:
+                raise MlflowError(
+                    "MLflow experiment reported as existing but could not be resolved"
+                )
+            return _experiment_id_from(experiment)
 
     def create_run(
         self,
@@ -134,6 +184,9 @@ class MlflowClient:
         start_time_ms: int,
         tags: list[dict[str, str]],
     ) -> str:
+        # runs/create is non-idempotent: a confirmed HTTP failure must not be
+        # retried (it could create a duplicate run). idempotent=False keeps the
+        # retry wrapper to connect-level URLError only (request never sent).
         _status, payload = self._request_json(
             "POST",
             "/api/2.0/mlflow/runs/create",
@@ -143,12 +196,33 @@ class MlflowClient:
                 "start_time": start_time_ms,
                 "tags": tags,
             },
+            idempotent=False,
         )
-        info = _run_info(payload)
-        run_id = info.get("run_id") or info.get("run_uuid")
-        if run_id is None:
-            raise MlflowError("MLflow create run response did not include run_id")
-        return str(run_id)
+        return _run_id_from(payload)
+
+    def find_run_by_analysis_id(
+        self, experiment_id: str, record_analysis_id: str
+    ) -> dict[str, Any] | None:
+        """Return the most recent run info tagged with this analysis_id, if any."""
+        safe_id = record_analysis_id.replace("\\", "\\\\").replace('"', '\\"')
+        _status, payload = self._request_json(
+            "POST",
+            "/api/2.0/mlflow/runs/search",
+            body={
+                "experiment_ids": [experiment_id],
+                "filter": f'tags."{ANALYSIS_ID_TAG}" = "{safe_id}"',
+                "run_view_type": "ALL",
+                "max_results": 1,
+            },
+        )
+        runs = payload.get("runs")
+        if not isinstance(runs, list) or not runs:
+            return None
+        first = runs[0]
+        if not isinstance(first, dict):
+            return None
+        info = first.get("info")
+        return info if isinstance(info, dict) else None
 
     def log_batch(
         self,
@@ -158,16 +232,28 @@ class MlflowClient:
         params: list[dict[str, str]],
         tags: list[dict[str, str]],
     ) -> None:
-        self._request_json(
-            "POST",
-            "/api/2.0/mlflow/runs/log-batch",
-            body={
-                "run_id": run_id,
-                "metrics": metrics,
-                "params": params,
-                "tags": tags,
-            },
-        )
+        # MLflow caps a single log-batch at 1000 metrics / 100 params /
+        # 100 tags / 1000 total entries. Chunk and loop so oversized payloads
+        # are accepted instead of rejected (or silently truncated) by the API.
+        for metric_chunk, param_chunk, tag_chunk in _chunk_log_batch(metrics, params, tags):
+            # runs/log-batch is NOT replay-safe: metrics are append-only time
+            # series, so replaying a batch the server already applied (or
+            # partially applied) before returning a 5xx duplicates metric points
+            # (and a differing params re-write can error). idempotent=False keeps
+            # the retry wrapper to connect-level URLError only (request never
+            # sent), surfacing a confirmed HTTP failure immediately instead of
+            # blindly re-logging metrics.
+            self._request_json(
+                "POST",
+                "/api/2.0/mlflow/runs/log-batch",
+                body={
+                    "run_id": run_id,
+                    "metrics": metric_chunk,
+                    "params": param_chunk,
+                    "tags": tag_chunk,
+                },
+                idempotent=False,
+            )
 
     def end_run(self, run_id: str, *, status: str, end_time_ms: int) -> None:
         self._request_json(
@@ -179,12 +265,13 @@ class MlflowClient:
     def log_analysis(self, record: AnalysisRecord, *, slug: str | None = None) -> MlflowLogResult:
         experiment_id = self.ensure_experiment(self.config.experiment_name)
         payload = analysis_mlflow_payload(record, slug=slug)
-        run_id = self.create_run(
-            experiment_id,
-            run_name=payload["run_name"],
-            start_time_ms=payload["timestamp_ms"],
-            tags=payload["run_tags"],
-        )
+        run_id = self._acquire_run(experiment_id, payload)
+
+        # status reflects the outcome we *want* to terminalize the run with.
+        # On metrics failure it becomes FAILED; if the final end_run itself
+        # fails we surface STATUS_FINALIZE_FAILED so the run is not silently
+        # reported FINISHED while still RUNNING server-side, and a
+        # terminalize-only retry remains possible.
         status = "FINISHED"
         try:
             self.log_batch(
@@ -195,12 +282,18 @@ class MlflowClient:
             )
         except Exception:
             status = "FAILED"
+            raise
+        finally:
             try:
                 self.end_run(run_id, status=status, end_time_ms=_now_ms())
-            except MlflowError:
-                pass
-            raise
-        self.end_run(run_id, status=status, end_time_ms=_now_ms())
+            except Exception:
+                # Could not terminalize. If metrics succeeded, downgrade the
+                # reported status so callers know the run is still RUNNING and
+                # can retry the terminalize step. If metrics already failed we
+                # are unwinding an exception and must not mask it.
+                if status == "FINISHED":
+                    status = STATUS_FINALIZE_FAILED
+
         return MlflowLogResult(
             tracking_uri=self.base_url,
             experiment_name=self.config.experiment_name,
@@ -213,6 +306,43 @@ class MlflowClient:
             tags_logged=len(payload["run_tags"]) + len(payload["batch_tags"]),
         )
 
+    def _acquire_run(self, experiment_id: str, payload: dict[str, Any]) -> str:
+        """Create a fresh run, terminalizing a stranded prior attempt first.
+
+        With reuse_existing_runs enabled, re-running an analysis always creates a
+        new run keyed by the same griosai.analysis_id tag; it does NOT reuse a
+        prior run's run_id. The only guarantee is that a previous attempt left
+        stranded RUNNING is terminalized as FAILED (it never completed) before
+        the fresh run is created, so re-runs do not leave orphaned RUNNING runs.
+        A prior terminal (e.g. FINISHED) run is left untouched.
+
+        Concurrency: there is a benign TOCTOU between find_run_by_analysis_id
+        and the subsequent create — two concurrent re-runs may both terminalize
+        the same orphan and both create new runs. This is acceptable for the
+        best-effort cleanup this method provides.
+        """
+        if not self.config.reuse_existing_runs:
+            return self._create_analysis_run(experiment_id, payload)
+
+        prior = self.find_run_by_analysis_id(experiment_id, payload["analysis_id"])
+        if prior is not None and str(prior.get("status", "")).upper() == "RUNNING":
+            prior_run_id = prior.get("run_id") or prior.get("run_uuid")
+            if prior_run_id is not None:
+                try:
+                    self.end_run(str(prior_run_id), status="FAILED", end_time_ms=_now_ms())
+                except Exception:
+                    # Best-effort cleanup of the orphan; never block the re-run.
+                    pass
+        return self._create_analysis_run(experiment_id, payload)
+
+    def _create_analysis_run(self, experiment_id: str, payload: dict[str, Any]) -> str:
+        return self.create_run(
+            experiment_id,
+            run_name=payload["run_name"],
+            start_time_ms=payload["timestamp_ms"],
+            tags=payload["run_tags"],
+        )
+
     def _request_json(
         self,
         method: str,
@@ -221,7 +351,19 @@ class MlflowClient:
         body: dict[str, Any] | None = None,
         query: dict[str, str] | None = None,
         expected_statuses: set[int] | None = None,
+        idempotent: bool = True,
     ) -> tuple[int, dict[str, Any]]:
+        """Issue a request with bounded retry/backoff and connection reuse.
+
+        Retry policy:
+        - Idempotent requests (GET, and POSTs whose replay is safe) retry on
+          connect-level URLError and on HTTP 429/500/502/503/504, honoring
+          Retry-After.
+        - Non-idempotent requests (e.g. runs/create) only retry on
+          connect-level URLError, where the request was never confirmed
+          server-side; a confirmed HTTP failure is surfaced immediately so a
+          partially-applied write is not duplicated.
+        """
         expected = expected_statuses or {200}
         url = f"{self.base_url}{path}"
         if query:
@@ -237,26 +379,54 @@ class MlflowClient:
         if self.config.tracking_token:
             headers["Authorization"] = f"Bearer {self.config.tracking_token}"
 
-        request = urllib.request.Request(url, data=data, headers=headers, method=method)
-        try:
-            with urllib.request.urlopen(request, timeout=self.config.timeout_seconds) as response:
-                response_body = response.read().decode("utf-8", errors="replace")
-                status = response.status
-        except urllib.error.HTTPError as exc:
+        last_error: Exception | None = None
+        for attempt in range(1, MAX_REQUEST_ATTEMPTS + 1):
+            request = urllib.request.Request(url, data=data, headers=headers, method=method)
+            retry_after: float | None = None
             try:
-                response_body = exc.read().decode("utf-8", errors="replace")
-                status = exc.code
-            finally:
-                exc.close()
-        except urllib.error.URLError as exc:
-            raise MlflowError(f"Could not reach MLflow tracking server: {exc}") from exc
+                with self._opener.open(
+                    request, timeout=self.config.timeout_seconds
+                ) as response:
+                    response_body = response.read().decode("utf-8", errors="replace")
+                    status = response.status
+            except urllib.error.HTTPError as exc:
+                try:
+                    response_body = exc.read().decode("utf-8", errors="replace")
+                    status = exc.code
+                    retry_after = _parse_retry_after(exc.headers.get("Retry-After"))
+                finally:
+                    exc.close()
+                # Only replay confirmed HTTP failures when it is safe to do so.
+                if (
+                    idempotent
+                    and status in RETRYABLE_HTTP_STATUSES
+                    and attempt < MAX_REQUEST_ATTEMPTS
+                ):
+                    last_error = MlflowError(
+                        f"MLflow {method} {path} returned retryable HTTP {status}"
+                    )
+                    _sleep_backoff(attempt, retry_after)
+                    continue
+            except urllib.error.URLError as exc:
+                # Connect-level failure: the request was not confirmed by the
+                # server, so it is safe to replay even for non-idempotent POSTs.
+                last_error = MlflowError(
+                    f"Could not reach MLflow tracking server: {exc}"
+                )
+                if attempt < MAX_REQUEST_ATTEMPTS:
+                    _sleep_backoff(attempt, None)
+                    continue
+                raise last_error from exc
 
-        payload = _decode_json_response(response_body)
-        if status not in expected:
-            raise MlflowError(
-                f"MLflow {method} {path} failed with HTTP {status}: {_error_message(payload)}"
-            )
-        return status, payload
+            payload = _decode_json_response(response_body)
+            if status not in expected:
+                raise MlflowError(
+                    f"MLflow {method} {path} failed with HTTP {status}: {_error_message(payload)}"
+                )
+            return status, payload
+
+        # Exhausted retries on a retryable HTTP status.
+        raise last_error or MlflowError(f"MLflow {method} {path} failed after retries")
 
 
 def log_analysis_to_mlflow(
@@ -296,6 +466,9 @@ def analysis_mlflow_payload(
         _tag("mlflow.runName", f"griosai-{analysis_slug}"),
         _tag("griosai.kind", "analysis"),
         _tag("griosai.privacy", "metadata-only"),
+        # Set at run-create time as a searchable tag so re-runs can find and
+        # reuse/terminalize the prior run for the same analysis (idempotency).
+        _tag(ANALYSIS_ID_TAG, record_analysis_id),
     ]
     batch_tags = [
         _tag("griosai.created_at", record.created_at),
@@ -375,6 +548,125 @@ def _run_info(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(info, dict):
         raise MlflowError("MLflow run response did not include run info")
     return info
+
+
+def _run_id_from(payload: dict[str, Any]) -> str:
+    info = _run_info(payload)
+    run_id = info.get("run_id") or info.get("run_uuid")
+    if run_id is None:
+        raise MlflowError("MLflow create run response did not include run_id")
+    return str(run_id)
+
+
+def _experiment_id_from(experiment: dict[str, Any]) -> str:
+    experiment_id = experiment.get("experiment_id")
+    if experiment_id is None:
+        raise MlflowError("MLflow experiment response did not include experiment_id")
+    return str(experiment_id)
+
+
+def _is_already_exists_error(payload: dict[str, Any]) -> bool:
+    code = payload.get("error_code")
+    return isinstance(code, str) and code.upper() == "RESOURCE_ALREADY_EXISTS"
+
+
+class _ExperimentExistsError(Exception):
+    """Raised internally when create-experiment loses a TOCTOU race."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"MLflow experiment already exists: {name}")
+        self.name = name
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Refuse to auto-follow any 3xx response from the tracking server.
+
+    urllib follows redirects transparently, so a tracking server that returns
+    a 3xx pointing at an internal address (e.g. 169.254.169.254 cloud metadata)
+    would otherwise bypass the construction-time SSRF gate. The redirect target
+    is re-validated against the loopback/allow gate, and every redirect is then
+    refused outright. The MLflow REST endpoints used here never legitimately
+    redirect, so treating 3xx as an error is the safe choice: it blocks the
+    SSRF pivot AND prevents the Authorization header from being replayed to a
+    different host (stdlib does not strip it across redirects).
+    """
+
+    def __init__(self, *, allow_remote: bool) -> None:
+        super().__init__()
+        self._allow_remote = allow_remote
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
+        # Re-validate the target purely to produce a precise error; the request
+        # is refused regardless of whether the target would have been allowed.
+        try:
+            validate_tracking_uri(newurl, allow_remote=self._allow_remote)
+            reason = "MLflow client does not follow redirects"
+        except ValueError as exc:
+            reason = f"refused redirect to disallowed host: {exc}"
+        raise urllib.error.HTTPError(newurl, code, reason, headers, fp)
+
+
+def _chunk_log_batch(
+    metrics: list[dict[str, object]],
+    params: list[dict[str, str]],
+    tags: list[dict[str, str]],
+) -> list[tuple[list[dict[str, object]], list[dict[str, str]], list[dict[str, str]]]]:
+    """Split metrics/params/tags into log-batch calls within MLflow caps.
+
+    Each chunk respects the per-type limits (1000 metrics / 100 params /
+    100 tags) and the 1000-entry total cap. At least one (possibly empty)
+    chunk is returned so the caller always issues one request.
+    """
+    chunks: list[
+        tuple[list[dict[str, object]], list[dict[str, str]], list[dict[str, str]]]
+    ] = []
+    m_i = p_i = t_i = 0
+    while m_i < len(metrics) or p_i < len(params) or t_i < len(tags):
+        budget = MAX_BATCH_TOTAL
+        m_take = min(len(metrics) - m_i, MAX_BATCH_METRICS, budget)
+        budget -= m_take
+        p_take = min(len(params) - p_i, MAX_BATCH_PARAMS, budget)
+        budget -= p_take
+        t_take = min(len(tags) - t_i, MAX_BATCH_TAGS, budget)
+        if m_take == 0 and p_take == 0 and t_take == 0:
+            # Defensive: should not happen given the loop guard, but avoids an
+            # infinite loop if all remaining items somehow exceed the budget.
+            break
+        chunks.append(
+            (
+                metrics[m_i : m_i + m_take],
+                params[p_i : p_i + p_take],
+                tags[t_i : t_i + t_take],
+            )
+        )
+        m_i += m_take
+        p_i += p_take
+        t_i += t_take
+    if not chunks:
+        chunks.append(([], [], []))
+    return chunks
+
+
+def _parse_retry_after(value: str | None) -> float | None:
+    if not value:
+        return None
+    value = value.strip()
+    try:
+        seconds = float(value)
+    except ValueError:
+        return None
+    if seconds < 0:
+        return None
+    return seconds
+
+
+def _sleep_backoff(attempt: int, retry_after: float | None) -> None:
+    if retry_after is not None:
+        delay = min(retry_after, RETRY_MAX_DELAY_SECONDS)
+    else:
+        delay = min(RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1)), RETRY_MAX_DELAY_SECONDS)
+    # Full jitter to avoid thundering-herd retries against the tracking server.
+    time.sleep(delay * (0.5 + random.random() * 0.5))
 
 
 def _decode_json_response(value: str) -> dict[str, Any]:

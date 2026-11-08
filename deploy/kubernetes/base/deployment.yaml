@@ -66,12 +66,14 @@ spec:
                   name: griosai-api
                   key: GRIOSAI_API_TOKEN
                   optional: true
-            - name: GRIOSAI_MLFLOW_TRACKING_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: griosai-mlflow
-                  key: GRIOSAI_MLFLOW_TRACKING_TOKEN
-                  optional: true
+            # The bundled mlflow-tracking server runs with no auth and silently
+            # ignores any bearer token, so GRIOSAI_MLFLOW_TRACKING_TOKEN is not
+            # injected here. In-cluster access is gated by ClusterIP-only and the
+            # mlflow-tracking-private NetworkPolicy. Only set
+            # GRIOSAI_MLFLOW_TRACKING_TOKEN (from a griosai-mlflow secret) when
+            # you point GRIOSAI_MLFLOW_TRACKING_URI at an external MLflow that
+            # is fronted by an authenticating proxy; see
+            # docs/ops/kubernetes-mlflow.md.
           ports:
             - name: http
               containerPort: 8765
