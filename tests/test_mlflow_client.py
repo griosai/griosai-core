@@ -220,13 +220,29 @@ class MlflowHardeningTests(unittest.TestCase):
         self.assertEqual(len(get_calls), 2)  # one 500, one 200
 
     def test_honors_retry_after_header(self) -> None:
-        with programmable_mlflow(
-            existing_experiment=True,
-            transient_failures={"/api/2.0/mlflow/experiments/get-by-name": [429]},
-            retry_after="2",
-        ) as server:
-            result = log_analysis_to_mlflow(MlflowConfig(tracking_uri=server.url), self._record())
+        with patch.object(mlflow_module.time, "sleep") as sleep, patch.object(
+            mlflow_module.random, "random", return_value=0.0
+        ):
+            with programmable_mlflow(
+                existing_experiment=True,
+                transient_failures={"/api/2.0/mlflow/experiments/get-by-name": [429]},
+                retry_after="2",
+            ) as server:
+                result = log_analysis_to_mlflow(MlflowConfig(tracking_uri=server.url), self._record())
         self.assertEqual(result.status, "FINISHED")
+        sleep.assert_called_once_with(2.0)
+
+    def test_retry_after_cap_and_fallback_jitter(self) -> None:
+        with patch.object(mlflow_module.time, "sleep") as sleep, patch.object(
+            mlflow_module.random, "random", return_value=0.0
+        ) as random:
+            mlflow_module._sleep_backoff(1, 100.0)
+            sleep.assert_called_once_with(mlflow_module.RETRY_MAX_DELAY_SECONDS)
+            random.assert_not_called()
+            sleep.reset_mock()
+            mlflow_module._sleep_backoff(2, None)
+            sleep.assert_called_once_with(mlflow_module.RETRY_BASE_DELAY_SECONDS)
+            random.assert_called_once_with()
 
     def test_non_idempotent_create_run_is_not_retried_on_http_500(self) -> None:
         # runs/create is non-idempotent: a confirmed 500 must surface
@@ -325,16 +341,67 @@ class MlflowHardeningTests(unittest.TestCase):
         self.assertTrue(searched)
 
     def test_experiment_create_conflict_resolves_to_existing(self) -> None:
-        # get-by-name 404s, create 409s (TOCTOU race), then re-resolve succeeds.
-        with programmable_mlflow(experiment_create_conflict=True) as server:
-            result = log_analysis_to_mlflow(MlflowConfig(tracking_uri=server.url), self._record())
-        self.assertEqual(result.experiment_id, "42")
-        get_calls = [
-            req
-            for req in server.requests
-            if req["path"] == "/api/2.0/mlflow/experiments/get-by-name"
-        ]
-        self.assertEqual(len(get_calls), 2)  # initial miss + post-conflict resolve
+        # MLflow3.1 returns400 for duplicate names; retain proxy409 compatibility.
+        for status in (400, 409):
+            with self.subTest(status=status), programmable_mlflow(
+                experiment_create_conflict=True, experiment_conflict_status=status
+            ) as server:
+                result = log_analysis_to_mlflow(MlflowConfig(tracking_uri=server.url), self._record())
+                self.assertEqual(result.experiment_id, "42")
+                get_calls = [
+                    req for req in server.requests
+                    if req["path"] == "/api/2.0/mlflow/experiments/get-by-name"
+                ]
+                self.assertEqual(len(get_calls), 2)
+
+    def test_experiment_create_unrelated_400_does_not_resolve_or_create_run(self) -> None:
+        with programmable_mlflow(
+            fail_paths={"/api/2.0/mlflow/experiments/create": 400}
+        ) as server:
+            with self.assertRaisesRegex(MlflowError, "HTTP 400.*boom"):
+                log_analysis_to_mlflow(MlflowConfig(tracking_uri=server.url), self._record())
+            self.assertEqual(
+                [req["path"] for req in server.requests],
+                ["/api/2.0/mlflow/experiments/get-by-name", "/api/2.0/mlflow/experiments/create"],
+            )
+
+    def test_experiment_commit_then_lost_response_recovers_real_conflict(self) -> None:
+        client = MlflowClient(MlflowConfig(tracking_uri="http://127.0.0.1:5000"))
+        created = {}
+        calls = []
+
+        def open_request(request, **kwargs):
+            path = urlparse(request.full_url).path
+            calls.append(path)
+            if path.endswith("/get-by-name"):
+                name = parse_qs(urlparse(request.full_url).query)["experiment_name"][0]
+                if name not in created:
+                    raise mlflow_module.urllib.error.HTTPError(
+                        request.full_url, 404, "missing", {},
+                        io.BytesIO(b'{"error_code":"RESOURCE_DOES_NOT_EXIST"}'),
+                    )
+                response = io.BytesIO(json.dumps({"experiment": {"experiment_id": created[name]}}).encode())
+                response.status = 200
+                return response
+            self.assertTrue(path.endswith("/experiments/create"))
+            name = json.loads(request.data)["name"]
+            if name not in created:
+                created[name] = "42"  # The server committed before the response was lost.
+                raise mlflow_module.urllib.error.URLError("response lost after commit")
+            raise mlflow_module.urllib.error.HTTPError(
+                request.full_url, 400, "already exists", {},
+                io.BytesIO(b'{"error_code":"RESOURCE_ALREADY_EXISTS"}'),
+            )
+
+        with patch.object(client._opener, "open", side_effect=open_request):
+            self.assertEqual(client.ensure_experiment("shared"), "42")
+        self.assertEqual(created, {"shared": "42"})
+        self.assertEqual(calls, [
+            "/api/2.0/mlflow/experiments/get-by-name",
+            "/api/2.0/mlflow/experiments/create",
+            "/api/2.0/mlflow/experiments/create",
+            "/api/2.0/mlflow/experiments/get-by-name",
+        ])
 
     def test_chunk_log_batch_respects_caps(self) -> None:
         metrics = [{"key": f"m{i}"} for i in range(MAX_BATCH_METRICS + 50)]
@@ -637,6 +704,7 @@ class programmable_mlflow:
         prior_running_run: str | None = None,
         prior_finished_run: str | None = None,
         experiment_create_conflict: bool = False,
+        experiment_conflict_status: int = 409,
     ) -> None:
         self.existing_experiment = existing_experiment
         self.fail_paths = fail_paths or {}
@@ -647,6 +715,7 @@ class programmable_mlflow:
         self.prior_running_run = prior_running_run
         self.prior_finished_run = prior_finished_run
         self.experiment_create_conflict = experiment_create_conflict
+        self.experiment_conflict_status = experiment_conflict_status
         self.requests: list[dict[str, object]] = []
 
     def _maybe_inject(self, handler: http.server.BaseHTTPRequestHandler, path: str) -> bool:
@@ -711,7 +780,7 @@ class programmable_mlflow:
                     if parent.experiment_create_conflict:
                         self._send_json(
                             {"error_code": "RESOURCE_ALREADY_EXISTS", "message": "exists"},
-                            status=409,
+                            status=parent.experiment_conflict_status,
                         )
                         return
                     self._send_json({"experiment_id": "42"})

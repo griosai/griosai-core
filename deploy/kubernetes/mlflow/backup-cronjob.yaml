@@ -19,11 +19,13 @@
 # docs/ops/backup-restore.md.
 #
 # Notes:
-# - The mlflow-tracking PVC is ReadWriteOnce. This Job and the tracking
-#   Deployment must land on the same node; with replicas: 1 that is the normal
-#   case. For multi-node or RWO that forbids co-mounting, schedule the backup
-#   into the tracker pod instead, snapshot the volume (see kubernetes-mlflow.md),
-#   or move MLflow to an external database + object store.
+# - ReadWriteOnce permits co-mounting on one node but does not select that node.
+#   Required pod affinity below targets the tracker and excludes backup pods.
+#   Before applying, ensure the backup PVC uses a compatible pre-bound volume
+#   or a WaitForFirstConsumer storage class whose driver can provision beside
+#   the tracker. Incompatible volume topology leaves the Job Pending; affinity
+#   must not be relaxed to work around it. ReadWriteOncePod cannot co-mount:
+#   use a snapshot or external database + object store instead.
 # - The backup reuses the tracker image (python:3.12-slim base) and uses the
 #   stdlib `sqlite3` module's online backup API via `python`. The standalone
 #   `sqlite3` CLI is not guaranteed in slim images, but `python` and its
@@ -72,6 +74,21 @@ spec:
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: mlflow-tracking
+                      app.kubernetes.io/part-of: griosai
+                    matchExpressions:
+                      - key: app.kubernetes.io/component
+                        operator: NotIn
+                        values:
+                          - backup
+                  namespaces:
+                    - griosai
+                  topologyKey: kubernetes.io/hostname
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001

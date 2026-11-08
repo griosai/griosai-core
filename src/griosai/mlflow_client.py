@@ -145,16 +145,20 @@ class MlflowClient:
         return experiment
 
     def create_experiment(self, name: str) -> str:
-        # Accept 409 so a create that races another writer (TOCTOU between
-        # get-by-name and create) does not crash; the caller re-resolves.
+        # MLflow reports duplicate names as400/RESOURCE_ALREADY_EXISTS;
+        # some proxies use409. Classify before resolving a racing create.
         status, payload = self._request_json(
             "POST",
             "/api/2.0/mlflow/experiments/create",
             body={"name": name},
-            expected_statuses={200, 409},
+            expected_statuses={200, 400, 409},
         )
         if status == 409 or _is_already_exists_error(payload):
             raise _ExperimentExistsError(name)
+        if status != 200:
+            raise MlflowError(
+                f"MLflow POST /api/2.0/mlflow/experiments/create failed with HTTP {status}: {_error_message(payload)}"
+            )
         experiment_id = payload.get("experiment_id")
         if experiment_id is None:
             raise MlflowError("MLflow create experiment response did not include experiment_id")
@@ -656,10 +660,10 @@ def _parse_retry_after(value: str | None) -> float | None:
 
 def _sleep_backoff(attempt: int, retry_after: float | None) -> None:
     if retry_after is not None:
-        delay = min(retry_after, RETRY_MAX_DELAY_SECONDS)
-    else:
-        delay = min(RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1)), RETRY_MAX_DELAY_SECONDS)
-    # Full jitter to avoid thundering-herd retries against the tracking server.
+        time.sleep(min(retry_after, RETRY_MAX_DELAY_SECONDS))
+        return
+    delay = min(RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1)), RETRY_MAX_DELAY_SECONDS)
+    # Jitter fallback backoff; never shorten the selected Retry-After delay.
     time.sleep(delay * (0.5 + random.random() * 0.5))
 
 

@@ -140,7 +140,14 @@ SQLite backend store at `/mlflow/mlflow.db` and run artifacts under
 
 An opt-in backup CronJob lives at
 `deploy/kubernetes/mlflow/backup-cronjob.yaml` and is intentionally left out of
-the default `kustomization.yaml`. Apply it explicitly once the tracker is up:
+the default `kustomization.yaml`. Before applying it, verify that the
+`mlflow-backups` claim can mount on the tracker's node: use a compatible
+pre-bound volume or a storage class with `volumeBindingMode: WaitForFirstConsumer`
+and a driver that supports provisioning in that node's topology. The manifest
+uses the default storage class; check its binding mode and allowed topologies
+before creating the claim. An existing bound backup volume must also support
+that node. Apply the manifest explicitly once those prerequisites hold and the
+tracker is up:
 
 ```bash
 kubectl apply -f deploy/kubernetes/mlflow/backup-cronjob.yaml
@@ -153,8 +160,14 @@ pruning copies older than `BACKUP_RETENTION_DAYS`. The `mlflow-tracking` PVC is
 mounted read-write in the backup pod because MLflow runs the database in WAL
 mode and the online backup API must touch the WAL sidecars to read a consistent
 snapshot; the backup only reads committed state and does not modify MLflow data.
-Because both PVCs are `ReadWriteOnce`, the backup Job and the tracker land on
-the same node; with `replicas: 1` that is the normal case.
+`ReadWriteOnce` permits multiple pods to mount on one node; it does not place
+them there. The backup's required hostname pod affinity selects the actual
+tracker labels in `griosai` and excludes backup pods. Without a matching tracker
+or compatible volume topology the Job remains Pending rather than selecting an
+unrelated node. The rule is checked at scheduling time: if the tracker moves,
+verify the backup volume's topology again and allow a new Job to be scheduled.
+`ReadWriteOncePod` storage cannot be shared this way; use the snapshot alternative
+or an external database and object store for that deployment.
 
 For details on restoring `mlflow.db` and artifacts, and for the
 `VolumeSnapshot` alternative when your storage class supports the CSI snapshot
