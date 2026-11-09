@@ -112,12 +112,17 @@ spec:
                   # directory first and still exits with the original status.
                   finish() {
                     rc=$?
+                    set +e
                     if [ "${rc}" -ne 0 ]; then
-                      rm -rf "${DEST}"
+                      rm -rf "${DEST}" || :
                     fi
                     echo "Pruning backups older than ${BACKUP_RETENTION_DAYS} day(s) ..."
                     find /backups -mindepth 1 -maxdepth 1 -type d \
-                      -mtime "+${BACKUP_RETENTION_DAYS}" -exec rm -rf {} + || true
+                      -mtime "+${BACKUP_RETENTION_DAYS}" -exec rm -rf {} +
+                    prune_rc=$?
+                    if [ "${rc}" -eq 0 ] && [ "${prune_rc}" -ne 0 ]; then
+                      rc="${prune_rc}"
+                    fi
                     exit "${rc}"
                   }
                   trap finish EXIT
