@@ -310,6 +310,14 @@ class MlflowHardeningTests(unittest.TestCase):
                 client.get_experiment_by_name("test")
         self.assertEqual(connection.return_value.request.call_count, MAX_REQUEST_ATTEMPTS)
 
+    def test_idempotent_lookup_retries_response_side_timeout(self) -> None:
+        client = MlflowClient(MlflowConfig())
+        with patch("urllib.request.http.client.HTTPConnection") as connection:
+            connection.return_value.getresponse.side_effect = TimeoutError("read timed out")
+            with self.assertRaises(MlflowError):
+                client.get_experiment_by_name("test")
+        self.assertEqual(connection.return_value.getresponse.call_count, MAX_REQUEST_ATTEMPTS)
+
     def test_redirect_to_internal_host_is_refused(self) -> None:
         # A 3xx pivot to a non-loopback host must be re-validated and refused.
         with programmable_mlflow(

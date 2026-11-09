@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import random
@@ -405,7 +406,7 @@ class MlflowClient:
                     )
                     _sleep_backoff(attempt, retry_after)
                     continue
-            except urllib.error.URLError as exc:
+            except (urllib.error.URLError, OSError, http.client.HTTPException) as exc:
                 # URLError can wrap an OSError while sending a request body;
                 # it does not establish that a write was never applied.
                 last_error = MlflowError(
