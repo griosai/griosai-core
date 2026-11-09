@@ -11,6 +11,7 @@ from pathlib import PurePosixPath
 from typing import Any
 
 from .brain import AnalysisRecord, render_markdown, slugify
+from .url_safety import is_loopback_host, parse_http_url
 
 
 DEFAULT_OBSIDIAN_URL = "https://127.0.0.1:27124"
@@ -197,13 +198,8 @@ def _validate_obsidian_parts(parts: list[str]) -> None:
 
 
 def _validate_loopback_url(value: str) -> None:
-    parsed = urllib.parse.urlparse(value)
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError("Obsidian URL must use http or https")
-    if parsed.username or parsed.password:
-        raise ValueError("Obsidian URL must not include credentials")
-    hostname = parsed.hostname or ""
-    if hostname not in {"127.0.0.1", "localhost", "::1"}:
+    parsed = parse_http_url(value, field_name="Obsidian URL")
+    if not is_loopback_host(parsed.hostname or ""):
         raise ValueError("Obsidian URL must point to localhost")
 
 

@@ -44,7 +44,7 @@ class AnalysisSchemaTests(unittest.TestCase):
         self.assertIn("observations-item-type", codes)
 
     def test_secret_like_payload_values_are_warnings_only(self) -> None:
-        secret = "sk-" + ("D" * 24)
+        secret = "sk-proj-" + ("D" * 24)
         findings = validate_analysis_payload(
             {
                 "title": "Private",

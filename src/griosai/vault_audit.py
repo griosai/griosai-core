@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .brain import VAULT_DIRS
+from .privacy import OPENAI_STYLE_KEY_RE, SECRET_VALUE_RE
 from .vault_archive import MAX_BACKUP_FILE_BYTES
 
 
@@ -21,10 +21,6 @@ TEXT_SUFFIXES = {
     ".yml",
 }
 MAX_SECRET_SCAN_BYTES = 1_000_000
-SECRET_VALUE_RE = re.compile(
-    r"(?i)\b(api[_-]?key|token|secret|password)\s*[:=]\s*['\"]?[a-z0-9._~+/=-]{20,}"
-)
-OPENAI_STYLE_KEY_RE = re.compile(r"\bsk-[a-zA-Z0-9]{16,}\b")
 
 
 @dataclass(frozen=True)

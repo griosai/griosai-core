@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .brain import AnalysisRecord, VAULT_DIRS, ensure_vault, safe_child, slugify, write_unique_text
+from .privacy import redact_likely_secrets
 
 
 LINEAGE_SCHEMA = "griosai.analysis-lineage.v1"
@@ -89,7 +90,7 @@ def lineage_manifest(
         "analysis_id": record_analysis_id,
         "analysis": {
             "slug": analysis_slug,
-            "model": record.model,
+            "model": redact_likely_secrets(record.model),
             "created_at": record.created_at,
             "source_image_name": _source_image_name(record.source_image),
             "summary_chars": len(record.summary),
@@ -351,14 +352,14 @@ def _source_image_name(value: str | None) -> str | None:
         name = PurePath(parsed.path).name
     else:
         name = PurePath(value.replace("\\", "/")).name
-    return name or None
+    return redact_likely_secrets(name) if name else None
 
 
 def _metadata_slug(record_analysis_id: str, slug: str | None) -> str:
     fallback = f"analysis-{record_analysis_id[:12]}"
     if slug is None:
         return fallback
-    return slugify(slug, fallback=fallback)
+    return slugify(redact_likely_secrets(slug), fallback=fallback)
 
 
 def _sha256_file(path: Path) -> str:

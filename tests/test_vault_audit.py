@@ -50,8 +50,12 @@ class VaultAuditTests(unittest.TestCase):
     def test_audit_warns_on_secret_like_text_without_printing_secret_value(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault = ensure_vault(Path(tmp) / "vault")
-            secret = "sk-" + ("A" * 24)
-            (vault / "notes" / "secret.md").write_text(f"token={secret}\n", encoding="utf-8")
+            secret = "sk-proj-" + ("A" * 24)
+            assignment_secret = "a" * 24
+            (vault / "notes" / "secret.md").write_text(
+                f"{secret}\ntoken={assignment_secret}\n",
+                encoding="utf-8",
+            )
 
             audit = audit_vault(vault)
             output = format_audit_json(audit)
@@ -61,6 +65,7 @@ class VaultAuditTests(unittest.TestCase):
             self.assertIn("secret-looking-key", codes)
             self.assertIn("secret-looking-assignment", codes)
             self.assertNotIn(secret, output)
+            self.assertNotIn(assignment_secret, output)
 
     def test_cli_vault_audit_json_and_text(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -14,6 +14,7 @@ from typing import Any, Mapping
 from .analysis_schema import require_valid_analysis_payload
 from .brain import AnalysisRecord, ensure_vault, safe_child, slugify, unique_path
 from .dashboard import render_dashboard
+from .privacy import OPENAI_STYLE_KEY_RE, SECRET_REDACTION
 
 
 REDACTION_POLICY_VERSION = "notebook-packet-v1"
@@ -27,9 +28,8 @@ _HOME_PATH_RE = re.compile(r"(?<![\w.-])~/[^\s)>\"]+")
 _BEARER_RE = re.compile(r"(?i)\bbearer\s+[a-z0-9._~+/=-]{8,}")
 _SECRET_ASSIGNMENT_RE = re.compile(
     r"(?i)\b(api[_-]?key|token|secret|password)\s*[:=]\s*['\"]?"
-    r"(?!\[redacted-secret\])[^'\"\s,;]+"
+    rf"(?!{re.escape(SECRET_REDACTION)})[^'\"\s,;]+"
 )
-_OPENAI_STYLE_KEY_RE = re.compile(r"\bsk-[a-zA-Z0-9]{16,}\b")
 
 
 class NotebookPacketError(ValueError):
@@ -152,9 +152,9 @@ def redact_text(value: object) -> str:
     text = str(value)
     text = _ABSOLUTE_PATH_RE.sub("[local-path]", text)
     text = _HOME_PATH_RE.sub("[local-path]", text)
-    text = _BEARER_RE.sub("Bearer [redacted-secret]", text)
-    text = _SECRET_ASSIGNMENT_RE.sub(lambda match: f"{match.group(1)}=[redacted-secret]", text)
-    text = _OPENAI_STYLE_KEY_RE.sub("[redacted-secret]", text)
+    text = _BEARER_RE.sub(f"Bearer {SECRET_REDACTION}", text)
+    text = _SECRET_ASSIGNMENT_RE.sub(lambda match: f"{match.group(1)}={SECRET_REDACTION}", text)
+    text = OPENAI_STYLE_KEY_RE.sub(SECRET_REDACTION, text)
     return text
 
 
@@ -315,7 +315,7 @@ def _privacy_findings(content: str) -> list[str]:
     if (
         _BEARER_RE.search(content)
         or _SECRET_ASSIGNMENT_RE.search(content)
-        or _OPENAI_STYLE_KEY_RE.search(content)
+        or OPENAI_STYLE_KEY_RE.search(content)
     ):
         findings.append("contains a likely secret")
     return findings

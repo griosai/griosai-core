@@ -22,6 +22,7 @@ from .ollama_client import (
     analyze_image,
 )
 from .openapi import OPENAPI_PATH, openapi_spec
+from .privacy import BEARER_TOKEN_RE, OPENAI_STYLE_KEY_RE
 
 
 MAX_BODY_BYTES = 2_000_000
@@ -30,7 +31,7 @@ HTML_CSP = (
     "default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; "
     "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 )
-_BEARER_RE = re.compile(r"(?i)\bbearer\s+[a-z0-9._~+/=-]{8,}")
+_INVALID_HOST_CHARS = set("\r\n\t /\\,@")
 
 
 class ClientError(ValueError):
@@ -380,20 +381,29 @@ def _resolve_api_image_path(vault_dir: Path, raw_path: str) -> Path:
 
 
 def _allowed_hostnames(config: GriosConfig) -> set[str]:
-    allowed = {host for host in config.allowed_hosts if host}
+    allowed = {
+        normalized
+        for host in config.allowed_hosts
+        if (normalized := _host_without_port(host))
+    }
     allowed.update({"127.0.0.1", "localhost", "::1"})
     if config.host not in {"0.0.0.0", "::", ""}:
-        allowed.add(config.host)
+        normalized = _host_without_port(config.host)
+        if normalized:
+            allowed.add(normalized)
     return allowed
 
 
 def _host_without_port(value: str) -> str:
     host = value.strip()
-    if host.startswith("["):
-        end = host.find("]")
-        if end != -1:
-            return host[1:end]
-    return host.rsplit(":", 1)[0] if ":" in host else host
+    if not host or any(char in _INVALID_HOST_CHARS for char in host):
+        return ""
+    try:
+        parsed = urlparse(f"//{host}")
+        _ = parsed.port
+    except ValueError:
+        return ""
+    return (parsed.hostname or "").lower()
 
 
 def _redact_log_value(value: str) -> str:
@@ -402,7 +412,8 @@ def _redact_log_value(value: str) -> str:
         "[local-path]",
         value,
     )
-    text = _BEARER_RE.sub("Bearer [redacted]", text)
+    text = BEARER_TOKEN_RE.sub("Bearer [redacted]", text)
+    text = OPENAI_STYLE_KEY_RE.sub("[redacted]", text)
     return re.sub(
         r"(?i)(authorization|api[_-]?key|token|secret|password)=([^&\s]+)",
         r"\1=[redacted]",

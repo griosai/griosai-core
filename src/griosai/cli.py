@@ -155,7 +155,12 @@ from .lineage import (
     verify_lineage,
     write_lineage_manifest,
 )
-from .mlflow_client import MlflowConfig, MlflowError, log_analysis_to_mlflow
+from .mlflow_client import (
+    STATUS_FINALIZE_FAILED,
+    MlflowConfig,
+    MlflowError,
+    log_analysis_to_mlflow,
+)
 from .notebook import NotebookConnectorAdapter, NotebookPacketError
 from .obsidian import ObsidianConfig, ObsidianError, publish_analysis_to_obsidian
 from .ollama_client import (
@@ -277,7 +282,7 @@ def _main(argv: list[str] | None = None) -> int:
             slug=args.slug,
         )
         print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
-        return 0
+        return 1 if result.status == STATUS_FINALIZE_FAILED else 0
     if args.command == "agent-run":
         config = _load_json_object(args.config_file)
         prompt_text = _load_optional_text(args.prompt_file)

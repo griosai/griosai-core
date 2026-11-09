@@ -22,6 +22,17 @@ class ObsidianTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ObsidianClient(ObsidianConfig(url="https://example.com", api_key="test-key"))
 
+    def test_rejects_loopback_url_with_credentials_query_fragment_or_bad_port(self) -> None:
+        for url in (
+            "https://user:pass@127.0.0.1:27124",
+            "https://127.0.0.1:27124?token=abc",
+            "https://127.0.0.1:27124#fragment",
+            "https://127.0.0.1:bad",
+        ):
+            with self.subTest(url=url):
+                with self.assertRaises(ValueError):
+                    ObsidianClient(ObsidianConfig(url=url, api_key="test-key"))
+
     def test_requires_api_key(self) -> None:
         with self.assertRaises(ObsidianError):
             ObsidianClient(ObsidianConfig(url="http://127.0.0.1:27123"))
