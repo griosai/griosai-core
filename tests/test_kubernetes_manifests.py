@@ -125,5 +125,44 @@ class KubernetesManifestTests(unittest.TestCase):
         self.assertIn("mlflow==${MLFLOW_VERSION}", mlflow)
 
 
+class BackupScriptTests(unittest.TestCase):
+    def _run(self, python_body: str) -> tuple[int, Path]:
+        import os
+        import tempfile
+        import textwrap
+
+        text = (REPO / "deploy/kubernetes/mlflow/backup-cronjob.yaml").read_text(
+            encoding="utf-8"
+        )
+        block = text.split("- |\n", 1)[1].split("              env:", 1)[0]
+        script = textwrap.dedent(block)
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "backups" / "old").mkdir(parents=True)
+        os.utime(tmp / "backups" / "old", (1, 1))
+        (tmp / "mlflow").mkdir()
+        (tmp / "bin").mkdir()
+        py = tmp / "bin" / "python"
+        py.write_text(python_body)
+        py.chmod(0o755)
+        script = script.replace("/backups", str(tmp / "backups")).replace(
+            "/mlflow", str(tmp / "mlflow")
+        )
+        env = {"PATH": f"{tmp / 'bin'}:/usr/bin:/bin", "BACKUP_RETENTION_DAYS": "1"}
+        proc = subprocess.run(
+            ["/bin/sh", "-c", script], env=env, capture_output=True, text=True
+        )
+        return proc.returncode, tmp / "backups"
+
+    def test_failed_backup_still_prunes_cleans_partial_and_exits_nonzero(self) -> None:
+        rc, backups = self._run("#!/bin/sh\nexit 1\n")
+        self.assertNotEqual(rc, 0)
+        self.assertEqual([p.name for p in backups.iterdir()], [])
+
+    def test_successful_backup_prunes_old_and_exits_zero(self) -> None:
+        rc, backups = self._run("#!/bin/sh\nexit 0\n")
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(list(backups.iterdir())), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

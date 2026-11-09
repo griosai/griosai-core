@@ -104,9 +104,24 @@ spec:
                 - /bin/sh
                 - -c
                 - |
-                  set -eu
+                  set -u
                   STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
                   DEST="/backups/${STAMP}"
+                  # Always prune, even when the backup fails (a full volume must
+                  # not block retention). A failed backup removes its partial
+                  # directory first and still exits with the original status.
+                  finish() {
+                    rc=$?
+                    if [ "${rc}" -ne 0 ]; then
+                      rm -rf "${DEST}"
+                    fi
+                    echo "Pruning backups older than ${BACKUP_RETENTION_DAYS} day(s) ..."
+                    find /backups -mindepth 1 -maxdepth 1 -type d \
+                      -mtime "+${BACKUP_RETENTION_DAYS}" -exec rm -rf {} + || true
+                    exit "${rc}"
+                  }
+                  trap finish EXIT
+                  set -e
                   mkdir -p "${DEST}"
                   echo "Backing up mlflow.db to ${DEST}/mlflow.db ..."
                   # Use the sqlite3 stdlib online backup API. The source is
@@ -123,9 +138,6 @@ spec:
                   else
                     echo "No /mlflow/artifacts directory; skipping artifact tar."
                   fi
-                  echo "Pruning backups older than ${BACKUP_RETENTION_DAYS} day(s) ..."
-                  find /backups -mindepth 1 -maxdepth 1 -type d \
-                    -mtime "+${BACKUP_RETENTION_DAYS}" -exec rm -rf {} +
                   echo "Backup complete: ${DEST}"
               env:
                 - name: BACKUP_RETENTION_DAYS

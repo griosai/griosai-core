@@ -326,6 +326,21 @@ class MlflowHardeningTests(unittest.TestCase):
             with self.assertRaises(MlflowError):
                 log_analysis_to_mlflow(MlflowConfig(tracking_uri=server.url), self._record())
 
+    def test_reuse_never_overwrites_run_that_finished_after_search(self) -> None:
+        client = MlflowClient(MlflowConfig(reuse_existing_runs=True))
+        with (
+            patch.object(
+                client,
+                "find_run_by_analysis_id",
+                return_value={"run_id": "r1", "status": "RUNNING"},
+            ),
+            patch.object(client, "get_run_status", return_value="FINISHED"),
+            patch.object(client, "end_run") as end_run,
+            patch.object(client, "_create_analysis_run", return_value="new"),
+        ):
+            self.assertEqual(client._acquire_run("1", {"analysis_id": "a1"}), "new")
+        end_run.assert_not_called()
+
     def test_reuse_terminalizes_prior_running_run_then_creates_new(self) -> None:
         with programmable_mlflow(
             existing_experiment=True,

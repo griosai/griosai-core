@@ -204,6 +204,16 @@ class MlflowClient:
         )
         return _run_id_from(payload)
 
+    def get_run_status(self, run_id: str) -> str | None:
+        """Return the run's current status, or None if it cannot be read."""
+        _status, payload = self._request_json(
+            "GET", "/api/2.0/mlflow/runs/get", query={"run_id": run_id}
+        )
+        run = payload.get("run")
+        info = run.get("info") if isinstance(run, dict) else None
+        value = info.get("status") if isinstance(info, dict) else None
+        return str(value).upper() if value is not None else None
+
     def find_run_by_analysis_id(
         self, experiment_id: str, record_analysis_id: str
     ) -> dict[str, Any] | None:
@@ -331,7 +341,12 @@ class MlflowClient:
             prior_run_id = prior.get("run_id") or prior.get("run_uuid")
             if prior_run_id is not None:
                 try:
-                    self.end_run(str(prior_run_id), status="FAILED", end_time_ms=_now_ms())
+                    # Re-read right before the terminal write so a run that
+                    # finished since the search is never downgraded to FAILED.
+                    if self.get_run_status(str(prior_run_id)) == "RUNNING":
+                        self.end_run(
+                            str(prior_run_id), status="FAILED", end_time_ms=_now_ms()
+                        )
                 except Exception:
                     # Best-effort cleanup of the orphan; never block the re-run.
                     pass
