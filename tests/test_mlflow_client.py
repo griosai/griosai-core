@@ -790,6 +790,9 @@ class programmable_mlflow:
                     else:
                         self._send_json({"error_code": "RESOURCE_DOES_NOT_EXIST"}, status=404)
                     return
+                if parsed.path == "/api/2.0/mlflow/runs/get":
+                    self._send_json({"run": {"info": {"run_id": "x", "status": "RUNNING"}}})
+                    return
                 self._send_json({"error": "not found"}, status=404)
 
             def do_POST(self) -> None:
