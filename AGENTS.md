@@ -3,6 +3,8 @@ SUMMARY: Local-first personal AI brain and dashboards; preserve private vault da
 
 # GriosAI — project instructions
 
+Release: pushed main
+
 ## Purpose
 
 GriosAI is a local-first personal AI brain and dashboard runner. The default
